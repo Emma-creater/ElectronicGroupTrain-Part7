@@ -25,13 +25,13 @@ Git & ROS2 & Robot Arm Manipulation
 <div class="mt-8 space-y-8">
 
 <div>
-<div class="text-2xl font-semibold">AI is a tool — for now, its power depends mainly on the person wielding it, not on the tool itself.</div>
-<div class="mt-1 text-base font-medium text-primary">AI目前来看还只是一个工具，他的主要威力取决于使用它的人，而不是他本身</div>
+<div class="text-2xl font-semibold">AI is still just a tool — it cannot solve every problem for you, especially those requiring physical interaction; its power depends not only on the model's capability, but even more on the person wielding it.</div>
+<div class="mt-1 text-base font-medium text-primary">AI目前来看还只是一个工具，无法帮你解决所有的和需要有物理交互的问题，他的主要威力不仅取决于模型的能力更取决于使用它的人</div>
 </div>
 
 <div>
-<div class="text-2xl font-semibold">You should always be aware of what you are asking the AI ​​to do and what it is actually doing; when the AI's actions exceed the boundaries of your own capabilities, it means you have lost control over the code.</div>
-<div class="mt-1 text-base font-medium text-primary">你应该时刻知道你在让AI做什么，AI做了什么，当AI所做的事情超乎你的能力边界，也就意味着你对这份代码失去的掌控</div>
+<div class="text-2xl font-semibold">You should always know what you are asking the AI to do and what it actually does; when the AI's actions exceed the boundaries of your own capabilities, it means you have lost control of the code.</div>
+<div class="mt-1 text-base font-medium text-primary">你应该时刻知道你在让AI做什么，AI做了什么，当AI所做的事情超出你的能力边界，也就意味着你对这份代码失去了掌控</div>
 </div>
 
 </div>
@@ -74,9 +74,13 @@ Distributed version control
 
 ## Personal Repository Version Control
 
-<div class="text-xl leading-loose tracking-wide">
+<div class="mt-16 space-y-8 text-xl leading-loose tracking-wide">
 
-设想一个我们用代码开发的实际场景，你在RC被安排和sby合作开发机械臂控制的项目，你负责做机械臂的运动控制，也就是告诉每一个电机你应该转到什么角度可以让我的机械臂的末端到达空间中的点(a, b, c)，然后sby负责去写电机控制，也就是把你得到的每一个电机的实际角度用对应电机厂家发给你的控制协议，变成电机读取的信息形式，让电机正确运动。但是sby很笨，每次都只会发给你一个他开发好的zip压缩包，你每一次都要解压缩，然后把他各种各样的文件复制到你的项目中，才可以测试。终于有一次，你好不容易在9.31基于sby 9.1号的代码实现了整个机械臂的运动控制，结果sby反手发给你了一个zip文件，名字叫 Version_0931.zip 你气愤地通宵了一个晚上把他新的代码和你的合并起来，colcon build 发现200个Error，你的天塌了...
+设想一个我们用代码开发的实际场景，你在RC被安排和sby合作开发机械臂控制的项目，你负责做机械臂的运动控制，也就是告诉每一个电机你应该转到什么角度可以让我的机械臂的末端到达空间中的点(a, b, c)，然后sby负责去写电机控制，也就是把你得到的每一个电机的实际角度用对应电机厂家发给你的控制协议，变成电机读取的信息形式，让电机正确运动。
+
+但是sby很笨，每次都只会发给你一个他开发好的zip压缩包，你每一次都要解压缩，然后把他各种各样的文件复制到你的项目中，才可以测试。
+
+终于有一次，你好不容易在9.31基于sby 9.1号的代码实现了整个机械臂的运动控制，结果sby反手发给你了一个zip文件，名字叫 Version_0931.zip 你气愤地通宵把他新的代码和你的合并起来，colcon build 发现200个Error，你的天塌了...
 
 </div>
 
@@ -152,8 +156,6 @@ gitGraph
 </div>
 
 - <span class="text-red-500">`git branch`</span> · <span class="text-red-500">`git checkout -b <name>`</span> · <span class="text-red-500">`git checkout <name>`</span> · `git switch -c <name>` · `git switch <name>` · `git branch -d <name>`
-
-如果当初你和 sby 从一开始就各自在分支上开发，"通宵合并 200 个 Error"的那一晚根本不会发生
 
 ---
 
@@ -266,11 +268,6 @@ jobs:
       - run: colcon test && colcon test-result --verbose
 ```
 
-<div class="mt-4 text-center opacity-80">
-
-还记得 sby 的 200 个 Error 吗？有了 hooks + CI，它们在你 push 之前就会被拦下来。
-
-</div>
 
 ---
 
@@ -418,19 +415,20 @@ gitGraph
 
 - 分支命名 `feat/chassis-xxx`、`feat/arm-xxx` —— 一眼可读
 - **每天开工先 `git pull` 同步 main**；功能一完成立刻合回去 —— 拖两周再合并，冲突就是灾难
-- 合并走 **PR**：CI 全绿 + 一名队友 review，才允许合入 main
-- 赛前在 main 上打 tag，联调出问题随时整体回退
+- 合并走 **PR**：CI 全绿 + 负责整车项管队友 review，才允许合入 main
+- 直接在main代码上做的修改要在 main 上打 tag，联调出问题随时整体回退
 
 ---
 
 ## Group Workflow: 嵌入式的深坑
 
-RTOS 工程的模块边界比 ROS2 **模糊得多** —— 任务共享中断、外设、内存，这些坑要提前防：
+RTOS 工程的模块边界比 ROS2 **模糊得多** —— 任务共享中断、外设、内存，冲突面更大，规范要沿开发链路一环环定死：**统一环境 → 防代码冲突 → 严管底层 → 把住合入 → 发布可查**
 
+- **编译器版本全组统一** — `arm-none-eabi-gcc` 的版本号写进 README、配一键安装脚本；版本不一致就是同一份代码两个结果，"我这能编译你那报错"的玄学问题永远查不完
 - **生成代码是冲突重灾区** — CubeMX 的 `.ioc` 和 `main.c` 谁重新生成一次就全变：外设分配定好后**不许各自 regenerate**，手写代码只放 `/* USER CODE */` 区块
 - **底层一动全身** — `bsp/` `drivers/` 是公共地板：改这里必须走 PR + 另一人 review；现场出问题第一反应 `git log bsp/` 看最近改动
-- **CI 换工具链** — 没有 colcon：Actions 里装 `arm-none-eabi-gcc` 交叉编译固件；逻辑测试把寄存器 mock 掉跑在 PC 上（Unity / CMock）
-- **发布产物是固件** — tag → CI 自动把 `.hex` / `.bin` 附到 Release，每台车刷的哪个版本永远可查
+- **任何人的 PC 都要能过完整编译** — 这是合入 main 的底线，编不过的代码不许 push；CI 替你把这道关：Actions 里装同版本工具链交叉编译，逻辑测试把寄存器 mock 掉跑在 PC 上（Unity / CMock）
+- **固件版本一致且永远可查** — tag → CI 自动把 `.hex` / `.bin` 附到 Release，每台车刷的哪个 tag 一查便知；赛前所有车统一刷到同一个 tag
 
 ---
 layout: section
