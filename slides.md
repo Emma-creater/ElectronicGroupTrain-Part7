@@ -503,66 +503,90 @@ flowchart TB
 
 **场景接第 1 页**：规划层算出"机器人该怎么走"，把速度指令**单向、持续**地发给四足运动控制器 —— 这就是 Topic
 
-<div class="grid grid-cols-2 gap-2">
+<div class="grid grid-cols-2 gap-2 compact-code">
 
 ```python
-# 发布者 planner —— 规划节点
+# 发布者 —— 规划节点
 import rclpy
-from rclpy.node import Node
 from geometry_msgs.msg import Twist
-
-class PlannerNode(Node):
-    def __init__(self):
-        super().__init__('planner')
-        self.pub = self.create_publisher(
-            Twist, '/cmd_vel', 10)        # 类型+话题+QoS
-        self.create_timer(0.1, self.tick) # 10 Hz 发布
-
-    def tick(self):
-        msg = Twist()
-        msg.linear.x = 0.5    # 前进 0.5 m/s
-        self.pub.publish(msg)
-
-rclpy.init()                  # 接入网络
-rclpy.spin(PlannerNode())     # 持续运行
+rclpy.init()
+node = rclpy.create_node('planner')
+pub = node.create_publisher(Twist, '/cmd_vel', 10)
+def tick():               # 10 Hz 持续发布
+    msg = Twist()
+    msg.linear.x = 0.5    # 前进 0.5 m/s
+    pub.publish(msg)
+node.create_timer(0.1, tick)
+rclpy.spin(node)          # 持续运行
 ```
 
 ```python
-# 订阅者 locomotion —— 四足控制节点
+# 订阅者 —— 四足控制节点
 import rclpy
-from rclpy.node import Node
 from geometry_msgs.msg import Twist
-
-class LocNode(Node):
-    def __init__(self):
-        super().__init__('locomotion')
-        self.create_subscription(
-            Twist, '/cmd_vel', self.on_cmd, 10)
-
-    def on_cmd(self, msg):    # 消息到达，自动回调
-        self.get_logger().info(
-            f'vx = {msg.linear.x}')
-
+def on_cmd(msg):          # 收到消息，自动回调
+    print(f'vx = {msg.linear.x}')
 rclpy.init()
-rclpy.spin(LocNode())         # spin：分发回调
+node = rclpy.create_node('locomotion')
+node.create_subscription(Twist, '/cmd_vel', on_cmd, 10)
+rclpy.spin(node)          # spin：分发回调
 ```
 
 </div>
 
-**围绕代码数一数，一次 Topic 通信需要什么：**
+**实现一次 Topic 通信，代码里数出四样东西**：
 
-- **消息类型 `Twist`** —— 数据格式的"合同"，两端 import 同一个类型
-- **话题名 `/cmd_vel`** —— 命名的频道，发布端和订阅端对上同一频道
-- **QoS `10`** —— 通信策略（缓存最近 10 条），入门照抄即可
-- **回调 + `spin()`** —— 消息到达进队列，spin 取出并触发回调
+- **消息类型** `Twist` —— 数据格式的<span class="text-red-500">合同</span>，两端用同一个类型
+- **话题名** `/cmd_vel` —— 命名的<span class="text-red-500">频道</span>，对上同一频道才能收到
+- **QoS** `10` —— 通信策略（缓存最近 10 条），入门照抄
+- **回调 + `spin()`** —— 消息到达进队列，spin 取出，<span class="text-red-500">自动触发回调</span>
 
-<v-click>
+---
 
-**背后机制**：Topic 是一条**命名的广播电台** —— 发布者只管发、不知道谁在听，订阅者只管收、不知道谁在发，**双方彻底解耦**，一边崩了另一边照常跑；**类型 + 话题名 + QoS 匹配**，DDS 自发现才把两端接起来。它适合**单向、连续**的数据流；"一问一答、必须等结果"是下一页的 Service。
+## Topic: 背后机制
 
-调试三连：<span class="text-red-500">`ros2 topic list`</span> · <span class="text-red-500">`ros2 topic echo /cmd_vel`</span> · `ros2 topic hz /cmd_vel`
+<div class="mt-2 space-y-4 text-lg leading-normal">
 
-</v-click>
+<div>
+
+**① 命名的广播电台** —— 发布者只管发，<span class="text-red-500">不知道谁在听</span>；订阅者只管收，<span class="text-red-500">不知道谁在发</span>，两端彻底解耦：一边崩了另一边照常跑
+
+</div>
+
+<div>
+
+**② 怎么找到彼此 —— DDS 两步自发现（没有中心）**：每个节点进程是一个 DDS Participant，启动后先<span class="text-red-500">组播自介绍</span>互相认识，再交换各自有哪些 writer / reader；<span class="text-red-500">topic + 类型 + QoS</span> 都匹配的自动配对，从此点对点直连 —— 这就是不再需要 roscore 的底层
+
+</div>
+
+<div>
+
+**③ 消息怎么到 —— 一条 DDS 管道**：
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.65}
+flowchart LR
+    P["publish(msg)"] --> S["序列化 CDR"] --> W["DataWriter 队列"] -->|"UDP / 共享内存"| R["DataReader 队列"] --> E["spin 取出"] --> C["回调 on_cmd"]
+```
+
+</div>
+
+队列的长度与可靠性，就是 **QoS 生效的地方**（`10` = 最多缓存 10 条）
+
+</div>
+
+<div>
+
+**④ 术语对应** —— `create_publisher` → DataWriter · `create_subscription` → DataReader · `ROS_DOMAIN_ID` → 隔离的域（域不同，互相看不见）
+
+</div>
+
+</div>
+
+<div class="mt-4 text-base">调试三连：<span class="text-red-500 font-bold">`ros2 topic list`</span> · <span class="text-red-500 font-bold">`ros2 topic echo /cmd_vel`</span> · `ros2 topic hz /cmd_vel`</div>
+
+<div class="mt-2 text-xs opacity-60">真实工程里节点通常写成 class 继承 Node —— 上一页取最简写法，聚焦通信 API</div>
 
 ---
 
@@ -570,134 +594,192 @@ rclpy.spin(LocNode())         # spin：分发回调
 
 **接场景**：上层要机械臂运动到抓取位姿 —— 必须**等到确认结果**才能走下一步，这种"一问一答"就是 Service
 
-<div class="grid grid-cols-2 gap-2">
+<div class="grid grid-cols-2 gap-2 compact-code">
 
 ```python
-# 服务端 server —— 机械臂控制节点
+# 服务端 —— 机械臂控制节点
 import rclpy
-from rclpy.node import Node
 from robot_interfaces.srv import SetEndPose
-
-class ArmServer(Node):
-    def __init__(self):
-        super().__init__('arm_control')
-        self.create_service(SetEndPose,
-                            'set_end_pose', self.handle)
-
-    def handle(self, req, res):   # 收到请求
-        res.success = self.move_to(req.pose)
-        return res                # 必须返回响应
-
+def handle(req, res):    # 收到请求
+    res.success = move_to(req.pose)
+    return res           # 必须返回响应
 rclpy.init()
-rclpy.spin(ArmServer())
+node = rclpy.create_node('arm_control')
+node.create_service(SetEndPose, 'set_end_pose', handle)
+rclpy.spin(node)
 ```
 
 ```python
-# 客户端 client —— 上层任务节点
+# 客户端 —— 上层任务节点
 import rclpy
-from rclpy.node import Node
 from robot_interfaces.srv import SetEndPose
-
-class TaskNode(Node):
-    def __init__(self):
-        super().__init__('task_node')
-        self.cli = self.create_client(
-            SetEndPose, 'set_end_pose')
-
-    def grasp(self, pose):
-        self.cli.wait_for_service()    # 等对方在线
-        fut = self.cli.call_async(
-            SetEndPose.Request(pose=pose))
-        rclpy.spin_until_future_complete(self, fut)
-        return fut.result().success    # 拿到答复
+rclpy.init()
+node = rclpy.create_node('task_node')
+cli = node.create_client(SetEndPose, 'set_end_pose')
+cli.wait_for_service()                # 等对方在线
+fut = cli.call_async(
+    SetEndPose.Request(pose=target))  # 发出请求
+rclpy.spin_until_future_complete(node, fut)
+print('到位了吗:', fut.result().success)
 ```
 
 </div>
 
-**围绕代码数一数，一次 Service 通信需要什么：**
+**实现一次 Service 通信，需要四样东西**：
 
-- **服务类型 `SetEndPose.srv`** —— 文件里 `---` 上半是请求、下半是响应；自定义接口放 `robot_interfaces` 包（就是 Git 部分说的接口包）
-- **服务名 `set_end_pose`** —— 两端对上同一个名字
-- **服务端 `create_service(类型, 名, 回调)`** —— 回调收到 `req`，处理后返回 `res`
-- **客户端 `create_client` + `call_async`** —— 异步调用拿到 future，`spin_until_future_complete` 等结果
+- **服务类型** `SetEndPose.srv` —— `---` <span class="text-red-500">上请求、下响应</span>；自定义接口放 `robot_interfaces` 包
+- **服务名** `set_end_pose` —— 两端对上同一个名字
+- **服务端** `create_service(类型, 名, 回调)` —— 回调收 `req`，处理完<span class="text-red-500">必须返回</span> `res`
+- **客户端** `create_client` + `call_async` —— 拿 future，`spin_until_future_complete` 等结果
 
-<v-click>
+---
 
-**背后机制**：Service 是一次**远程函数调用** —— 客户端"调用"、服务端"执行并返回"，一问必有一答；底层其实就是 DDS 上的一对 topic（请求一条、响应一条），**不是新的传输层，而是一种通信模式**。适合**低频、短耗时、必须确认结果**的操作；但服务回调里别干长活 —— 长耗时还要进度汇报，是下一页的 Action。
+## Service: 背后机制
 
-调试：<span class="text-red-500">`ros2 service list`</span> · `ros2 service call /set_end_pose robot_interfaces/srv/SetEndPose "..."`
+<div class="mt-2 space-y-4 text-lg leading-normal">
 
-</v-click>
+<div>
+
+**① 远程函数调用** —— 客户端"调用"，服务端"执行并返回"，<span class="text-red-500">一问必有一答</span>：调用方拿到确认才继续
+
+</div>
+
+<div>
+
+**② 底层拆开 —— 一对 topic + 请求 ID 配对**：
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.7}
+flowchart LR
+    C["客户端"] -->|"请求 topic<br/>+ request_id"| S["服务端"]
+    S -->|"响应 topic<br/>同一个 request_id"| C
+```
+
+</div>
+
+客户端发出请求时记下 id、拿一个 future 挂起等待；响应带着<span class="text-red-500">同一个 request_id</span> 回来，配对成功才填充 future —— `call_async` 返回的 future 就是这么实现的
+
+</div>
+
+<div>
+
+**③ 服务强制可靠传输** —— 请求、响应一条都不能丢，所以默认 <span class="text-red-500">RELIABLE</span> QoS；topic 才允许选"丢了也行"的 best-effort
+
+</div>
+
+<div>
+
+**④ 单线程回调** —— 默认一次只处理一个请求：回调里干长活会<span class="text-red-500">堵死整个服务</span>，这正是 Action 存在的理由（后面两页）
+
+</div>
+
+</div>
+
+<div class="mt-4 text-base">调试：<span class="text-red-500 font-bold">`ros2 service list`</span> · `ros2 service call /set_end_pose robot_interfaces/srv/SetEndPose "..."`</div>
 
 ---
 
 ## Action: Client and Server
 
-**接场景**：决策层给四足下发"导航到方块旁" —— 任务**耗时长、要进度、可能中途取消**，这是 Action
+**接场景**：决策层给四足下发"导航到方块旁" —— **耗时长、要进度、可中途取消**
 
-<div class="grid grid-cols-2 gap-2">
+<div class="grid grid-cols-2 gap-2 compact-code">
 
 ```python
-# 动作端 server —— 导航节点
+# 动作端 —— 导航节点
 import rclpy
-from rclpy.node import Node
 from rclpy.action import ActionServer
 from robot_interfaces.action import GoToPose
-
-class NavServer(Node):
-    def __init__(self):
-        super().__init__('navigator')
-        ActionServer(self, GoToPose, 'go_to_pose',
-                     execute_callback=self.execute)
-
-    def execute(self, goal):       # 长任务写这里
-        for i, step in enumerate(self.plan()):
-            move(step)
-            fb = GoToPose.Feedback()
-            fb.progress = i / len(self.plan())
-            goal.publish_feedback(fb)   # 汇报进度
-        res = GoToPose.Result()
-        res.success = True
-        return res                    # 最终结果
-
+def execute(goal):               # 长任务写这里
+    for i, step in enumerate(PATH):
+        move(step)
+        goal.publish_feedback(   # 持续汇报进度
+            GoToPose.Feedback(progress=i / len(PATH)))
+    return GoToPose.Result(success=True)
 rclpy.init()
-rclpy.spin(NavServer())
+node = rclpy.create_node('navigator')
+ActionServer(node, GoToPose, 'go_to_pose', execute_callback=execute)
+rclpy.spin(node)
 ```
 
 ```python
-# 客户端 client —— 决策节点
+# 客户端 —— 决策节点
 import rclpy
-from rclpy.node import Node
 from rclpy.action import ActionClient
 from robot_interfaces.action import GoToPose
-
-class TaskNode(Node):
-    def __init__(self):
-        super().__init__('task_node')
-        self.cli = ActionClient(
-            self, GoToPose, 'go_to_pose')
-
-    def goto(self, pose):
-        self.cli.wait_for_server()
-        fut = self.cli.send_goal_async(
-            GoToPose.Goal(target=pose))
-        rclpy.spin_until_future_complete(self, fut)
-        handle = fut.result()       # "任务凭据"
-        r = handle.get_result_async()
-        rclpy.spin_until_future_complete(self, r)
-        return r.result().success   # 最终结果
+rclpy.init()
+node = rclpy.create_node('task_node')
+cli = ActionClient(node, GoToPose, 'go_to_pose')
+cli.wait_for_server()
+fut = cli.send_goal_async(
+    GoToPose.Goal(target=goal_pose))  # 下发目标
+rclpy.spin_until_future_complete(node, fut)
+handle = fut.result()      # 任务凭据，不是结果
+r = handle.get_result_async()
+rclpy.spin_until_future_complete(node, r)
 ```
 
 </div>
 
-- **三段式定义** —— `GoToPose.action` 用两根 `---` 分成 goal（目标）/ result（结果）/ feedback（反馈）
-- **服务端 `execute_callback`** —— 长任务在这里跑，随时 `publish_feedback`
-- **客户端拿到的是 goal handle** —— 是"任务凭据"不是结果，凭它可查进度、`cancel_goal()` 中途放弃
-- **为什么不用 Service** —— service 回调里干长活会把服务堵死，这正是 Action 存在的理由
+- **三段式定义** `GoToPose.action` —— 两根 `---` 分隔 <span class="text-red-500">goal / result / feedback</span>
+- **服务端** `execute_callback` —— 长任务写这里，随时 `publish_feedback`
+- **客户端拿 goal handle** —— <span class="text-red-500">任务凭据，不是结果</span>，可 `cancel_goal()` 取消
 
-<v-click>
+---
 
-**背后机制**：Action = **topic 和 service 的组合** —— goal 下发与结果返回走 service（可靠一问一答），feedback 和状态广播走 topic（持续单向流），拼成了一个"长任务协议"。
+## Action: 背后机制 Ⅰ —— 五条通道
+
+**一个 Action = 3 个 service + 2 个 topic，拼出"长任务协议"**：
+
+<div class="text-sm">
+
+| 通道 | 类型 | 方向 | 干什么 |
+|---|---|---|---|
+| goal | service | 客户端 → 服务端 | <span class="text-red-500">下发目标</span>，返回接受 / 拒绝 |
+| cancel | service | 客户端 → 服务端 | 中途放弃 |
+| result | service | 客户端 → 服务端 | 任务结束后<span class="text-red-500">取最终结果</span> |
+| feedback | topic | 服务端 → 客户端 | 执行中<span class="text-red-500">持续汇报进度</span> |
+| status | topic | 服务端 → 广播 | 所有目标的状态，RViz / 监控节点都能听 |
+
+</div>
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.75}
+flowchart LR
+    A["① send_goal<br/>goal service"] --> B["② 接受后<br/>execute() 开始"]
+    B --> C["③ 执行中<br/>feedback topic 持续汇报"]
+    C --> D["④ 结束<br/>result service 返回"]
+```
+
+</div>
+
+**为什么这么拆** —— 目标要确认收到 → service；进度是连续流 → topic；结果任务结束才有 → get_result 等待
+
+---
+
+## Action: 背后机制 Ⅱ —— 状态机与选型
+
+**goal handle 状态机**（客户端拿到的"任务凭据"就是它）：
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.8}
+stateDiagram-v2
+    [*] --> ACCEPTED : send_goal 被接受
+    ACCEPTED --> EXECUTING : 开始执行
+    EXECUTING --> SUCCEEDED : execute 正常返回
+    EXECUTING --> ABORTED : execute 异常返回
+    EXECUTING --> CANCELED : cancel_goal
+```
+
+</div>
+
+- 状态每次变化都广播在 **status topic** 上 —— 任何节点（RViz、监控）都能监听全场，不用挨个去问
+- 服务端可同时挂多个 goal，各走各的状态机互不干扰
+
+<div class="mt-2 text-sm">
 
 | | Topic | Service | Action |
 |---|---|---|---|
@@ -705,9 +787,66 @@ class TaskNode(Node):
 | 数据 | 单向连续流 | 请求 + 响应 | 目标 + 反馈 + 结果 |
 | 典型 | `/cmd_vel`、传感器 | 设定位姿、标定 | 导航、抓取 |
 
-调试：`ros2 action list` · `ros2 action info /go_to_pose`
+</div>
 
-</v-click>
+<div class="mt-4 text-center text-xl font-bold text-red-500">选用口诀：连续流用 Topic · 短确认用 Service · 长任务用 Action</div>
+
+<div class="mt-3 text-base">调试：`ros2 action list` · `ros2 action info /go_to_pose`</div>
+
+---
+
+## DDS 实现与选型
+
+**DDS 只是标准（OMG）—— ROS2 靠 RMW 抽象层适配各种实现**，换 DDS 零代码改动，一个环境变量搞定：`export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`
+
+<div class="text-sm">
+
+| 实现 | 出品方 | 特点 | 谁的默认 |
+|---|---|---|---|
+| Fast DDS | eProsima | 功能全，同机默认走共享内存 | Humble 及更早 |
+| Cyclone DDS | Eclipse / ZettaScale | 轻量、延迟好、一个 XML 配完 | Iron / Jazzy |
+| RTI Connext | RTI | 工业级认证，商用收费 | 手动装 |
+| Zenoh | ZettaScale | 新一代协议（不是 DDS），弱网友好 | 实验性 |
+
+</div>
+
+- **别纠结选型，纠结统一** —— 用发行版默认（Humble → Fast DDS，Jazzy → Cyclone），<span class="text-red-500">全组写死同一个</span>进 README；RMW 混用 = "我这能跑你那不行"的玄学之源
+- **常见坑：组播被禁** —— 自发现靠组播，场馆 / 校园网常把它关掉 → 节点互相看不见，用 XML 配单播 peer 列表即可
+- **性能问题以后再说** —— 相机大流量走共享内存、调 socket buffer，大多数队到不了这一步
+
+---
+
+## Topic 速算例题：四足 12-DoF 运控指令流
+
+<div class="text-base">
+
+**设定**：12 关节 × (force / pos / vel / kp / kd，float32)，500 Hz – 1 kHz，UDP 本机，QoS depth = 10 —— **L** = 12 × 5 × 4 B + 前缀 ≈ **0.26 KB**/条
+
+| 检查项 | 计算 | 结论 |
+|---|---|---|
+| 带宽 L×f | 130–260 KB/s | 环回能力（~GB/s）的 **0.1%**，不会排队 |
+| 延迟 ≈ L/B_eff + C_fixed | 0.5 μs + 固定开销 → C++：**0.1–0.3 ms**；Python：**0.5–1+ ms** | <span class="text-red-500">与长度无关，全看节点实现</span> |
+| QoS=10 的含义 | 积压上限 = 10 × (1/f) = **10–20 ms 旧指令** | 指令流用 <span class="text-red-500">depth = 1</span>：跳到最新 |
+
+- **结论一**：1 kHz 周期才 1 ms，Python 端通信开销就吃掉大半周期 → <span class="text-red-500">运控节点必须 C++</span>
+- **结论二**：敌人是**抖动**不是均值 —— 调度 / 抢核 / GC 让某几拍飙几 ms → 绑核 + `SCHED_FIFO`
+
+</div>
+
+---
+
+## 为什么 kHz 运控环不走 Topic
+
+**根本原因：Topic 给的是"平均快"，运控要的是<span class="text-red-500">每一拍都准</span>**
+
+- **回调调度不确定** —— executor 唤醒走普通内核调度，最坏情况几 ms；控制环要确定性的最坏响应时间，低均值没有意义
+- **热路径有动态内存和拷贝** —— publish → 序列化 → 队列，分配与页错误随时引入毛刺，无法给出硬上界
+- **语义错配：事件 vs 采样** —— 控制环要"每拍开始时读一次最新值"（采样），topic 是"来了就回调"（事件）；kHz 下回调风暴本身就把 spin 线程打满
+- **进程边界** —— 跨进程 = 上下文切换 + 多次拷贝，实时环天生要收进单进程单线程
+
+**真实四足栈的做法**：kHz 运控环（状态估计 + WBC + 总线收发）收进<span class="text-red-500">单进程固定时序循环</span>，直接怼 EtherCAT / CAN；ROS2 topic 只出现在<span class="text-red-500">环外</span> —— 决策 / 步态规划以 100–500 Hz 把目标喂给运控，这个频率 topic 完全胜任
+
+<div class="mt-4 text-center text-lg font-bold text-primary">这正是下一节 ros2_control 存在的理由：它把 read() → update() → write() 的固定时序实时环封装好，替你守住实时 / 非实时的边界</div>
 
 ---
 
