@@ -27,6 +27,8 @@ const to = parseInt(process.argv[3] || '50', 10);
           if (r.bottom > worstBottom) { worstBottom = r.bottom; worstEl = (el.textContent || '').trim().slice(0, 30); }
           worstRight = Math.max(worstRight, r.right);
         }
+        // SVG 子元素的 bbox 以未缩放用户坐标报告, 会误报 — SVG 整体当叶子量测
+        if (el.tagName && el.tagName.toLowerCase() === 'svg') return;
         [...el.children].forEach(walk);
       };
       walk(slide);

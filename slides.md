@@ -1024,21 +1024,145 @@ from rotation matrices to planning & control.
 
 ---
 
-## Rotation Matrix: 从二维到三维
+## Rotation Matrix: 从一个 2D 向量开始
 
-**旋转矩阵回答一个问题：新坐标系的轴，在旧坐标系下指向哪 —— 列向量就是答案**
+<div class="grid grid-cols-2 gap-4 items-center">
+
+<div>
+
+<svg viewBox="0 0 480 300" class="w-full">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3b82f6"/></marker>
+    <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/></marker>
+  </defs>
+  <line x1="90" y1="260" x2="455" y2="260" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="90" y1="260" x2="90" y2="30" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="462" y="265" fill="#64748b" font-size="12">x</text>
+  <text x="80" y="26" fill="#64748b" font-size="12">y</text>
+  <line x1="253" y1="184" x2="253" y2="260" stroke="#cbd5e1" stroke-dasharray="4 4"/>
+  <line x1="253" y1="184" x2="90" y2="184" stroke="#cbd5e1" stroke-dasharray="4 4"/>
+  <line x1="90" y1="260" x2="253" y2="184" stroke="#3b82f6" stroke-width="3" marker-end="url(#arrB)"/>
+  <line x1="90" y1="260" x2="166" y2="97" stroke="#ef4444" stroke-width="3" marker-end="url(#arrR)"/>
+  <path d="M 153.4 230.4 A 70 70 0 0 0 119.6 196.6" fill="none" stroke="#f59e0b" stroke-width="2"/>
+  <text x="160" y="212" fill="#f59e0b" font-size="14" font-weight="bold">θ</text>
+  <text x="172" y="250" fill="#3b82f6" font-size="12">α</text>
+  <circle cx="253" cy="184" r="3.5" fill="#3b82f6"/>
+  <circle cx="166" cy="97" r="3.5" fill="#ef4444"/>
+  <text x="262" y="182" fill="#3b82f6" font-size="13" font-weight="bold">p = (x, y)</text>
+  <text x="118" y="88" fill="#ef4444" font-size="13" font-weight="bold">p′ = R·p</text>
+  <text x="230" y="278" fill="#94a3b8" font-size="11">x = r·cosα</text>
+  <text x="14" y="180" fill="#94a3b8" font-size="11">r·sinα</text>
+</svg>
+
+</div>
 
 <div class="text-sm">
 
-$$R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix} \qquad R_z(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta & 0 \\ \sin\theta & \cos\theta & 0 \\ 0 & 0 & 1 \end{bmatrix}$$
+**向量 p 转过 θ 后到哪？—— 和角公式直接给出答案**
+
+- 转之前：$p = (r\cos\alpha,\ r\sin\alpha)$；转之后角度变成 $\alpha + \theta$：
+
+$$x' = r\cos(\alpha{+}\theta) = \cos\theta \cdot x - \sin\theta \cdot y$$
+
+$$y' = r\sin(\alpha{+}\theta) = \sin\theta \cdot x + \cos\theta \cdot y$$
+
+- 写成矩阵 —— $R(\theta)$ 从三角恒等式里"掉"了出来：
+
+$$\begin{bmatrix} x' \\ y' \end{bmatrix} = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix} \begin{bmatrix} x \\ y \end{bmatrix}$$
+
+</div>
 
 </div>
 
 <div class="text-base">
 
-- **二维 → 三维**：2D 绕原点转 θ；3D 绕一根轴转 —— $R_x, R_y$ 同理，只是"不动的那根轴"对角线放 1
-- **三条性质**（后面全靠它）：① 正交 $R^TR = I$ → <span class="text-red-500">转置 = 逆</span>，求逆不用解方程；② $\det R = +1$，纯旋转不镜像；③ 复合 = 乘法：相对固定系先 $R_1$ 后 $R_2$ = $R_2 R_1$
-- **本质**：把"姿态"变成"乘法" —— 机器人学一切位姿运算的地基
+**列向量约定下，乘法顺序怎么读？** —— p′ = R·p，矩阵左乘列向量；连续"先 $R_1$ 后 $R_2$"：$p' = R_2(R_1\,p)$ —— <span class="text-red-500">从右往左读，像嵌套函数 f(g(x))：最右边的最先作用</span>；行向量约定（部分图形学教材）则整体反过来（p′ = p·R₁·R₂）—— 机器人学统一列向量，所以一律从右往左
+
+</div>
+
+---
+
+## Rotation Matrix: 三维 —— 绕轴旋转
+
+**三维 = 绕一根轴转：被绕的轴不动（对角线放 1），剩下的 2×2 块就是上一页的 2D 旋转**（下式 $c\theta = \cos\theta$，$s\theta = \sin\theta$）
+
+<div class="grid grid-cols-3 gap-2">
+
+<div>
+
+<svg viewBox="0 0 160 168" class="w-[190px] mx-auto">
+  <defs>
+    <marker id="axg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+    <marker id="axo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>
+    <marker id="axr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/></marker>
+  </defs>
+  <line x1="80" y1="82" x2="80" y2="24" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axg)"/>
+  <line x1="80" y1="82" x2="142" y2="68" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axg)"/>
+  <line x1="80" y1="82" x2="138" y2="110" stroke="#ef4444" stroke-width="2.5" marker-end="url(#axr)"/>
+  <path d="M 114 72 A 24 28 0 0 1 130 104" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#axo)"/>
+  <text x="76" y="16" fill="#64748b" font-size="11">z</text>
+  <text x="148" y="62" fill="#64748b" font-size="11">y</text>
+  <text x="144" y="122" fill="#ef4444" font-size="11" font-weight="bold">x</text>
+  <text x="14" y="152" fill="#475569" font-size="11">绕 <tspan fill="#ef4444" font-weight="bold">x</tspan> 转 θ：x 不动</text>
+</svg>
+
+<div class="text-xs">
+
+$$R_x = \begin{bmatrix} 1 & 0 & 0 \\ 0 & c\theta & -s\theta \\ 0 & s\theta & c\theta \end{bmatrix}$$
+
+</div>
+
+</div>
+
+<div>
+
+<svg viewBox="0 0 160 168" class="w-[190px] mx-auto">
+  <line x1="80" y1="82" x2="80" y2="24" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axg)"/>
+  <line x1="80" y1="82" x2="138" y2="110" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axg)"/>
+  <line x1="80" y1="82" x2="142" y2="68" stroke="#ef4444" stroke-width="2.5" marker-end="url(#axr)"/>
+  <path d="M 92 55 A 30 26 0 0 1 98 103" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#axo)"/>
+  <text x="76" y="16" fill="#64748b" font-size="11">z</text>
+  <text x="148" y="62" fill="#ef4444" font-size="11" font-weight="bold">y</text>
+  <text x="144" y="122" fill="#64748b" font-size="11">x</text>
+  <text x="14" y="152" fill="#475569" font-size="11">绕 <tspan fill="#ef4444" font-weight="bold">y</tspan> 转 θ：y 不动</text>
+</svg>
+
+<div class="text-xs">
+
+$$R_y = \begin{bmatrix} c\theta & 0 & s\theta \\ 0 & 1 & 0 \\ -s\theta & 0 & c\theta \end{bmatrix}$$
+
+</div>
+
+</div>
+
+<div>
+
+<svg viewBox="0 0 160 168" class="w-[190px] mx-auto">
+  <line x1="80" y1="82" x2="138" y2="110" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axg)"/>
+  <line x1="80" y1="82" x2="142" y2="68" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axg)"/>
+  <line x1="80" y1="82" x2="80" y2="24" stroke="#ef4444" stroke-width="2.5" marker-end="url(#axr)"/>
+  <path d="M 112 96 A 30 16 0 0 0 138 64" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#axo)"/>
+  <text x="76" y="16" fill="#ef4444" font-size="11" font-weight="bold">z</text>
+  <text x="148" y="62" fill="#64748b" font-size="11">y</text>
+  <text x="144" y="122" fill="#64748b" font-size="11">x</text>
+  <text x="14" y="152" fill="#475569" font-size="11">绕 <tspan fill="#ef4444" font-weight="bold">z</tspan> 转 θ：z 不动</text>
+</svg>
+
+<div class="text-xs">
+
+$$R_z = \begin{bmatrix} c\theta & -s\theta & 0 \\ s\theta & c\theta & 0 \\ 0 & 0 & 1 \end{bmatrix}$$
+
+</div>
+
+</div>
+
+</div>
+
+<div class="text-base">
+
+- **三条性质**：① 正交 $R^TR = I$ → <span class="text-red-500">转置 = 逆</span>；② $\det R = +1$；③ 复合 = 乘法，相对固定系先 $R_1$ 后 $R_2$ = $R_2 R_1$ —— $R_y$ 的 $\sin$ 位置与另两个不同，<span class="text-red-500">别死记，用时现查</span>
+- **R 的另一副面孔 —— 姿态**：三个列向量 = <span class="text-red-500">新坐标系三根轴的指向</span> —— "姿态"的含义由此而来，机器人学的日常用法
 
 </div>
 
@@ -1046,35 +1170,149 @@ $$R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\thet
 
 ## 姿态描述：矩阵、欧拉角与四元数
 
-**姿态只有 3 个自由度，却有三种"记法" —— 各有各的坑**：
+**姿态只有 3 个自由度，却有三种"记法" —— 各有各的坑**
+
+<div class="grid grid-cols-2 gap-4 items-center">
+
+<div class="flex justify-center">
+
+<img src="/attitude.png" class="h-[230px]">
+
+</div>
+
+<div class="text-xs">
 
 | 表示 | 个数 | 优点 | 坑 | 用在哪 |
 |---|---|---|---|---|
-| 旋转矩阵 | 9 | 无奇异、直接乘 | 冗余（带 6 个约束） | 推导、计算 |
-| RPY / 欧拉角 | 3 | 直观、给人看 | <span class="text-red-500">万向节死锁</span>：pitch = ±90° 时 roll / yaw 共线，丢一个自由度 | 界面、调参 |
+| 旋转矩阵 | 9 | 无奇异、直接乘 | 冗余（带 6 约束） | 推导、计算 |
+| RPY / 欧拉角 | 3 | 直观、给人看 | <span class="text-red-500">万向节死锁</span>：pitch=±90° 时 roll/yaw 共线 | 界面、调参 |
 | 四元数 | 4 | 无奇异、插值平滑 | 不直观、要归一化 | 存储、通信 |
 
-<div class="text-base">
+**实用主义**：存储通信用四元数（`geometry_msgs/Quaternion` 是 ROS2 标配），给人看转 RPY，计算立刻换回矩阵
 
-- ROS2 里 `geometry_msgs/Quaternion`（x, y, z, w）是标配 —— IMU、tf、MoveIt 全用它
-- **实用主义**：存储通信用四元数，给人看转 RPY，计算立刻换回矩阵；RPY → 矩阵 $R = R_z(\psi)\,R_y(\theta)\,R_x(\phi)$
+</div>
 
 </div>
 
 ---
 
-## 齐次坐标变换
+## RPY 旋转顺序与四元数
 
-**把"旋转 + 平移"打包成一个 4×4 矩阵，坐标变换就全是矩阵乘法**：
-
-$$T^{A}_{B} = \begin{bmatrix} R^{A}_{B} & p^{A}_{B} \\ 0 & 1 \end{bmatrix} \qquad\quad T^{A}_{C} = T^{A}_{B}\, T^{B}_{C}$$
+**机器人 / 航空约定：固定轴 X→Y→Z —— 先 roll(φ) 绕 x，再 pitch(θ) 绕 y，最后 yaw(ψ) 绕 z，全绕"不动的固定系"转**
 
 <div class="text-base">
 
-- **$T^A_B$ 读作"B 系在 A 系下的位姿"**：$R$ 说姿态、$p$ 说原点；点坐标补个 1 再乘即可换系
-- **连乘 = 接力翻译**：方块在相机系 → $T^{cam}_{arm}$ → 机械臂系 → $T^{arm}_{world}$ → 世界系 —— <span class="text-red-500">一台机器人就是一棵变换树</span>
-- **左乘 vs 右乘**：相对固定系变换 = 左乘；相对自身当前系 = 右乘（绕自己转）
-- ROS2 的 **tf2** 就是在全局维护这棵树、并随时间插值 —— 生态页里的"tf2 坐标变换"就是它
+$$R = R_z(\psi)\,R_y(\theta)\,R_x(\phi) \qquad\quad q = q_z(\psi)\otimes q_y(\theta)\otimes q_x(\phi)$$
+
+</div>
+
+<div class="text-base">
+
+- **为什么必须定顺序** —— 旋转<span class="text-red-500">不满足交换律</span>：$R_1R_2 \neq R_2R_1$，同样三个角换个顺序就是另一种姿态；矩阵形式里<span class="text-red-500">最右的先转</span>（呼应"从右往左读"）
+- **RPY → 四元数的转换逻辑**：单角转四元数 $q_{axis}(\theta) = [\cos\tfrac{\theta}{2},\ \sin\tfrac{\theta}{2}\cdot\hat{axis}]$（4 个数：1 实部 + 3 虚部），再按**同样顺序做四元数乘法**连乘 —— 与矩阵复合完全同构；代码一行：`Rotation.from_euler('xyz', [r, p, y]).as_quat()`
+
+</div>
+
+**凭什么赢的是四元数（4 个数打败 9 个数）**：
+
+- **无死锁** —— 欧拉角在 pitch = ±90° 丢一个自由度，四元数全域光滑无奇异
+- **数值稳定** —— 只要保持模长 = 1，IMU 融合 / 积分的漂移好控制，没有 6 个正交约束要反复修正
+- **插值自然** —— slerp 球面插值让姿态平滑过渡（轨迹、动画），欧拉角插值会"拐弯"
+- **计算便宜** —— 复合一次是 4 元乘法，矩阵要 9 元；上万次姿态运算差距明显
+
+---
+
+## 齐次坐标变换：形式与几何
+
+**T 把"旋转 R + 平移 p"打包：R 说 B 的三根轴指向哪，p 说 B 的原点在哪**
+
+<div class="grid grid-cols-2 gap-3 items-center">
+
+<div>
+
+<svg viewBox="0 0 460 300" class="w-[400px]">
+  <defs>
+    <marker id="hg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+    <marker id="hb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3b82f6"/></marker>
+    <marker id="ho" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>
+    <marker id="hr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/></marker>
+    <marker id="hk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+  </defs>
+  <line x1="60" y1="250" x2="245" y2="250" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#hg)"/>
+  <line x1="60" y1="250" x2="60" y2="65" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#hg)"/>
+  <text x="252" y="255" fill="#64748b" font-size="6">x_A</text>
+  <text x="48" y="60" fill="#64748b" font-size="6">y_A</text>
+  <text x="30" y="270" fill="#64748b" font-size="7" font-weight="bold">{A}</text>
+  <line x1="150" y1="170" x2="219" y2="112" stroke="#3b82f6" stroke-width="2" marker-end="url(#hb)"/>
+  <line x1="150" y1="170" x2="92" y2="101" stroke="#3b82f6" stroke-width="2" marker-end="url(#hb)"/>
+  <text x="224" y="108" fill="#3b82f6" font-size="6">x_B</text>
+  <text x="82" y="92" fill="#3b82f6" font-size="6">y_B</text>
+  <text x="118" y="160" fill="#3b82f6" font-size="7" font-weight="bold">{B}</text>
+  <line x1="60" y1="250" x2="150" y2="170" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#ho)"/>
+  <text x="52" y="200" fill="#f59e0b" font-size="7" font-weight="bold">p^A_B</text>
+  <line x1="150" y1="170" x2="290" y2="120" stroke="#ef4444" stroke-width="2" marker-end="url(#hr)"/>
+  <text x="248" y="146" fill="#ef4444" font-size="6" font-weight="bold">P^B</text>
+  <line x1="60" y1="250" x2="290" y2="120" stroke="#334155" stroke-width="1.5" stroke-dasharray="3 4" marker-end="url(#hk)"/>
+  <text x="196" y="196" fill="#334155" font-size="6" font-weight="bold">P^A</text>
+  <circle cx="290" cy="120" r="4" fill="#334155"/>
+  <text x="300" y="116" fill="#334155" font-size="7" font-weight="bold">P</text>
+  <text x="90" y="292" fill="#334155" font-size="7">P^A = p^A_B + R^A_B · P^B</text>
+</svg>
+
+</div>
+
+<div class="text-sm">
+
+$$T^{A}_{B} = \begin{bmatrix} R^{A}_{B} & p^{A}_{B} \\ 0\;\;0\;\;0 & 1 \end{bmatrix}$$
+
+- **$R^{A}_{B}$：3×3 正交旋转矩阵** —— 三个列向量 = B 的三根轴在 A 系下的方向
+- **$p^{A}_{B}$：3×1 平移列向量** —— B 的原点在 A 系下的位置
+- 点坐标补 1 再左乘：$\tilde{P}^{A} = T^{A}_{B}\,\tilde{P}^{B}$
+
+</div>
+
+</div>
+
+<div class="text-xs">
+
+**R 用 RPY 欧拉角算出来（承接上一页的 $R = R_z R_y R_x$）**：
+
+$$R^{A}_{B} = \begin{bmatrix} c\psi c\theta & c\psi s\theta s\phi - s\psi c\phi & c\psi s\theta c\phi + s\psi s\phi \\ s\psi c\theta & s\psi s\theta s\phi + c\psi c\phi & s\psi s\theta c\phi - c\psi s\phi \\ -s\theta & c\theta s\phi & c\theta c\phi \end{bmatrix}$$
+
+</div>
+
+---
+
+## 坐标系变换 vs 向量的旋转平移
+
+**同一套矩阵，两种解读 —— 机器人学 90% 用的是左边那种**
+
+| | 坐标系变换（被动） | 向量旋转平移（主动） |
+|---|---|---|
+| 点动了吗 | <span class="text-red-500">不动</span>，只是换了描述它的参考系 | <span class="text-red-500">真的在空间中动了</span> |
+| 公式 | $\tilde{P}^{A} = T^{A}_{B}\,\tilde{P}^{B}$ | $p' = R\,p\quad p' = p + t$ |
+| 典型场景 | tf 树、手眼标定、多传感器融合 | 轨迹生成、图形学、控制指令 |
+
+<div class="text-base">
+
+- **联系：数学完全相同** —— 同一个 R 左乘，既可读作"把点转了 θ"，也可读作"把描述点的坐标系转了 θ"；两种视角互为反向：<span class="text-red-500">坐标系转 +θ ⟺ 向量坐标转 −θ</span>
+- **换系是接力**（相机 → 臂 → 世界，全是被动变换）：
+
+</div>
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.62}
+flowchart LR
+    B["方块位姿<br/>（相机系看到）"] -->|"T_cam_arm<br/>矩阵乘一次"| A["机械臂系"]
+    A -->|"T_arm_world<br/>再乘一次"| W["世界系"]
+```
+
+</div>
+
+<div class="text-base">
+
+- **左乘 vs 右乘**：相对固定系变换 = 左乘；相对自身当前系 = 右乘（绕自己转）—— ROS2 的 **tf2** 在全局维护这棵树并随时间插值
 
 </div>
 
@@ -1084,11 +1322,45 @@ $$T^{A}_{B} = \begin{bmatrix} R^{A}_{B} & p^{A}_{B} \\ 0 & 1 \end{bmatrix} \qqua
 
 **FK：已知关节角求末端在哪 —— 唯一解，连乘就行；IK：末端要到哪求关节角 —— 可能多解、无解**
 
-<div class="text-base">
+<div class="grid grid-cols-2 gap-4 items-center">
 
-- **正运动学 FK**：DH 参数给每个关节 4 个数，$T^{base}_{end} = A_1(q_1)\,A_2(q_2)\cdots A_n(q_n)$ —— 上一页的矩阵连乘，永远唯一
-- **逆运动学 IK**：解非线性方程组 —— **解析解**（特定结构可闭式推导：四足单腿 3 关节、Pieper 结构 6 轴臂）vs **数值解**（牛顿迭代 $q \leftarrow q + J^{+}\,\Delta x$，通用但依赖初值、可能不收敛）
-- **直觉**：FK 顺藤摸瓜，IK 戴着镣铐倒推 —— 所以真实系统里 <span class="text-red-500">IK 只对少数结构解析求解</span>，其余交给迭代或 IKFast / KDL
+<div>
+
+<svg viewBox="0 0 420 250" class="w-full">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <line x1="30" y1="210" x2="150" y2="210" stroke="#94a3b8" stroke-width="1.5"/>
+  <g stroke="#94a3b8" stroke-width="1">
+    <line x1="45" y1="210" x2="38" y2="220"/><line x1="65" y1="210" x2="58" y2="220"/>
+    <line x1="85" y1="210" x2="78" y2="220"/><line x1="105" y1="210" x2="98" y2="220"/>
+  </g>
+  <line x1="70" y1="210" x2="260" y2="210" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 4" marker-end="url(#arr2)"/>
+  <line x1="70" y1="210" x2="176.5" y2="135.5" stroke="#475569" stroke-width="5" stroke-linecap="round"/>
+  <line x1="176.5" y1="135.5" x2="176.5" y2="25.5" stroke="#475569" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="70" cy="210" r="7" fill="#1e293b"/>
+  <circle cx="176.5" cy="135.5" r="6" fill="#1e293b"/>
+  <circle cx="176.5" cy="25.5" r="5" fill="#ef4444"/>
+  <path d="M 118 210 A 48 48 0 0 0 109.3 182.5" fill="none" stroke="#f59e0b" stroke-width="2"/>
+  <text x="124" y="204" fill="#f59e0b" font-size="7" font-weight="bold">q₁</text>
+  <path d="M 209.2 112.5 A 40 40 0 0 0 176.5 95.5" fill="none" stroke="#f59e0b" stroke-width="2"/>
+  <text x="214" y="108" fill="#f59e0b" font-size="7" font-weight="bold">q₂</text>
+  <text x="78" y="180" fill="#475569" font-size="7">连杆 1</text>
+  <text x="186" y="80" fill="#475569" font-size="7">连杆 2</text>
+  <text x="188" y="24" fill="#ef4444" font-size="7" font-weight="bold">末端 = A₁(q₁)·A₂(q₂)</text>
+  <text x="30" y="235" fill="#94a3b8" font-size="6">基座</text>
+</svg>
+
+</div>
+
+<div class="text-sm">
+
+- **正运动学 FK**：左图 —— $q_1, q_2$ 已知，末端位置唯一确定；一般式 $T^{base}_{end} = A_1(q_1)\cdots A_n(q_n)$，DH 参数给每个关节 4 个数
+- **逆运动学 IK**：末端要到哪、反求关节角 —— 解非线性方程组，<span class="text-red-500">可能多解（左右肘）、无解（够不着）、无穷解</span>
+- **解析 vs 数值**：**解析解**（闭式推导：四足单腿 3 关节、Pieper 结构 6 轴臂）vs **数值解**（牛顿迭代 $q \leftarrow q + J^{+}\Delta x$，通用但依赖初值）
+- **直觉**：FK 顺藤摸瓜，IK 戴着镣铐倒推 —— 真实系统里 IK 只对少数结构解析求解，其余交给迭代或 IKFast / KDL
+
+</div>
 
 </div>
 
@@ -1165,12 +1437,43 @@ wbc.solve(tasks) -> { qdd_star, fc };
 
 **问题：高维、有障碍、带约束的空间里，找一条从起点到目标的可行路径**
 
-<div class="text-base">
+<div class="grid grid-cols-2 gap-4 items-center">
+
+<div>
+
+<svg viewBox="0 0 480 240" class="w-full">
+  <rect x="140" y="40" width="70" height="120" rx="4" fill="#94a3b8" opacity="0.55"/>
+  <rect x="260" y="110" width="70" height="110" rx="4" fill="#94a3b8" opacity="0.55"/>
+  <g stroke="#cbd5e1" stroke-width="1">
+    <line x1="40" y1="190" x2="85" y2="160"/><line x1="85" y1="160" x2="150" y2="185"/>
+    <line x1="85" y1="160" x2="120" y2="130"/><line x1="120" y1="130" x2="170" y2="90"/>
+    <line x1="120" y1="130" x2="60" y2="110"/><line x1="40" y1="190" x2="95" y2="220"/>
+    <line x1="170" y1="90" x2="215" y2="70"/><line x1="215" y1="70" x2="258" y2="95"/>
+  </g>
+  <circle cx="60" cy="110" r="2" fill="#cbd5e1"/><circle cx="120" cy="130" r="2" fill="#cbd5e1"/>
+  <circle cx="170" cy="90" r="2" fill="#cbd5e1"/><circle cx="215" cy="70" r="2" fill="#cbd5e1"/>
+  <circle cx="95" cy="220" r="2" fill="#cbd5e1"/><circle cx="150" cy="185" r="2" fill="#cbd5e1"/>
+  <polyline points="40,190 115,200 195,205 235,185 258,95 330,65 440,60" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
+  <circle cx="115" cy="200" r="3" fill="#3b82f6"/><circle cx="195" cy="205" r="3" fill="#3b82f6"/>
+  <circle cx="235" cy="185" r="3" fill="#3b82f6"/><circle cx="258" cy="95" r="3" fill="#3b82f6"/><circle cx="330" cy="65" r="3" fill="#3b82f6"/>
+  <circle cx="40" cy="190" r="8" fill="#22c55e"/>
+  <circle cx="440" cy="60" r="8" fill="#ef4444"/>
+  <text x="30" y="220" fill="#22c55e" font-size="13" font-weight="bold">起点</text>
+  <text x="425" y="90" fill="#ef4444" font-size="13" font-weight="bold">目标</text>
+  <text x="150" y="170" fill="#64748b" font-size="12">障碍</text>
+  <text x="272" y="105" fill="#cbd5e1" font-size="12">随机树</text>
+</svg>
+
+</div>
+
+<div class="text-sm">
 
 - **规划发生在构型空间 C-space**：机器人每个"姿势"是一个点，障碍把一部分点变成禁区 —— 规划 = 在这个可能 12 维的空间里找通路
-- **采样式规划（RRT 系）—— 高维主力**：随机撒点 + 贪心长树，撞上障碍换方向，<span class="text-red-500">概率完备</span>（时间够必能找到）；RRT-Connect 双树对长，是 MoveIt 默认
-- **其他家族**：图搜索 A*（低维栅格，导航路径规划器用它）；优化式 CHOMP / STOMP（轨迹平滑，易陷局部最优）
-- **路径 ≠ 轨迹**：路径没有时间，加上时间参数化（速度 / 加速度约束）才变成可执行轨迹
+- **采样式规划（RRT 系）—— 高维主力**：随机撒点、贪心长树（左图浅色枝条），撞上障碍换方向，<span class="text-red-500">概率完备</span>：时间够必能找到；RRT-Connect 双树对长是 MoveIt 默认
+- **其他家族**：图搜索 A*（低维栅格，导航用它）；优化式 CHOMP / STOMP（平滑但易陷局部最优）
+- **路径 ≠ 轨迹**：路径没有时间，加时间参数化（速度 / 加速度约束）才可执行
+
+</div>
 
 </div>
 
@@ -1182,9 +1485,20 @@ wbc.solve(tasks) -> { qdd_star, fc };
 
 **把上一页的方法打包成开箱即用的库：规划 + 碰撞 + IK + 执行一条龙**
 
-<div class="text-base">
+<div class="flex justify-center">
 
-- **里面有什么**：三个可换规划器 OMPL（RRT 采样）/ Pilz（工业 PTP·LIN）/ STOMP；FCL 碰撞检测（Planning Scene 维护环境）；IK 插件（KDL 数值 / IKFast 解析）；轨迹时间参数化
+```mermaid {scale: 0.62}
+flowchart LR
+    G["目标位姿"] --> MG["MoveGroup<br/>OMPL 规划 · FCL 碰撞<br/>IK · 时间参数化"]
+    MG -->|"JointTrajectory"| TC["trajectory controller<br/>（ros2_control）"]
+    TC --> HW["机械臂硬件"]
+```
+
+</div>
+
+<div class="text-sm">
+
+- **可换的零件**：规划器 OMPL（RRT 采样，默认）/ Pilz（工业 PTP·LIN）/ STOMP；IK 插件 KDL（数值）/ IKFast（解析）；Planning Scene 用 FCL 做碰撞检测
 - **与 ros2_control 闭环**：MoveGroup 规划出 `JointTrajectory` → <span class="text-red-500">trajectory controller 按时间戳执行</span> —— 规划的终点就是前面 ros2_control 的起点
 - **上手三步**：URDF + SRDF（定义规划组、碰撞对）→ 启 MoveGroup 节点 → 客户端一句 plan & execute（C++ / moveit_py）
 
