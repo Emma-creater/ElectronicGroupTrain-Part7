@@ -43,6 +43,10 @@ Git & ROS2 & Robot Arm Manipulation
 
 ## Contents
 
+<div class="grid grid-cols-2 gap-8">
+
+<div>
+
 - Git
   - Personal Repository Version Control
   - Branches & Merge
@@ -54,13 +58,23 @@ Git & ROS2 & Robot Arm Manipulation
   - Topic: Publisher and Subscription
   - Service & Action: Client and Server
   - ROS2 Control
-  - ROS2 Effective Develop of Team Collaboration 
+  - ROS2 Effective Develop of Team Collaboration
+
+</div>
+
+<div>
+
 - Robot Arm Manipulation
-  - Rotation Matrix
-  - Coordinate Transformation in Homogeneous Space
+  - Rotation Matrix & Orientation
+  - Homogeneous Transformation
   - Forward & Inverse Kinematics
   - Jacobian Matrix
-  - Dynamics
+  - Dynamics & leg_control
+  - Motion Planning & MoveIt2
+
+</div>
+
+</div>
 
 ---
 layout: section
@@ -329,11 +343,10 @@ flowchart TB
 
 开工第一天，一人牵头把**基建**做进仓库，其他人 clone 即得同款环境。目录结构分两轨：
 
-<div class="text-sm">
-
-**ROS2 场景 — colcon 工作区**
+<div class="grid grid-cols-2 gap-2 text-xs compact-code">
 
 ```bash
+# ROS2 场景 — colcon 工作区
 robot_ws/
 ├── src/chassis_control/     # 同学 A 的包
 ├── src/arm_control/         # 同学 B 的包
@@ -343,9 +356,8 @@ robot_ws/
 └── .pre-commit-config.yaml  # 统一 hooks
 ```
 
-**嵌入式场景 — 裸机 / RTOS 工程**
-
 ```bash
+# 嵌入式场景 — 裸机 / RTOS 工程
 firmware/
 ├── bsp/ + drivers/      # 时钟/外设/电机驱动（共用，指定 owner）
 ├── chassis/             # 同学 A：底盘任务
@@ -444,7 +456,7 @@ The standard framework for robot development: communication, building tool and e
 
 **任何一个智能机器人，都由同样的五层构成：感知 → 决策 → 规划 → 控制 → 执行**
 
-<div class="text-sm">
+<div class="text-xs">
 
 以 RoboCon 四足机器人搬运方块为例 —— 每一层在这个任务里分别是什么：
 
@@ -458,13 +470,17 @@ The standard framework for robot development: communication, building tool and e
 
 </div>
 
-**这么多模块是怎么一起跑起来的？—— 多进程**：每一个部分都是一个独立进程，单独处理自己的信息，再和其他模块相互通信、交换信息。这个框架、这个交换信息的平台，就是 **ROS2**。
+<div class="text-sm">
+
+**这么多模块是怎么一起跑起来的？—— 多进程**：每一个部分都是一个独立进程，单独处理自己的信息、再互相通信交换 —— 这个框架、这个交换信息的平台，就是 **ROS2**。
+
+</div>
 
 <v-click>
 
-<div class="mt-4 text-center text-2xl font-bold text-red-500">ROS2 不是多么神奇的东西 —— 核心只是一个通信的媒介</div>
+<div class="mt-2 text-center text-lg font-bold text-red-500">ROS2 不是多么神奇的东西 —— 核心只是一个通信的媒介</div>
 
-<div class="mt-4 text-center text-base font-medium text-primary">但随着工具逐渐强大、生态逐渐完善：colcon 构建 · tf2 坐标变换 · RViz 可视化 · rosbag 录制回放 · launch 一键启动 · ros2_control · MoveIt —— 今天的 ROS2 早已不单纯是一个多进程通信工具</div>
+<div class="mt-2 text-center text-xs font-medium text-primary">但生态早已长全：colcon · tf2 · RViz · rosbag · launch · ros2_control · MoveIt —— 不再只是一个多进程通信工具</div>
 
 </v-click>
 
@@ -476,7 +492,7 @@ The standard framework for robot development: communication, building tool and e
 
 <div class="flex justify-center">
 
-```mermaid {scale: 0.9}
+```mermaid {scale: 0.7}
 flowchart TB
     subgraph R1["ROS1 —— 先起中央 master，所有节点连它"]
         A["节点 A"] <--> M["roscore"]
@@ -492,16 +508,20 @@ flowchart TB
 
 </div>
 
-- ROS1 的 master 一挂，整个系统瘫痪；ROS2 基于 DDS **自发现**，节点直接对话 —— **没有单点故障**
-- 其余大致差异：**QoS** 可按话题定制（控制指令走可靠通道、图像流允许丢包）；平台更广，**micro-ROS** 能直接跑在 MCU 上
+<div class="text-base">
 
-<div class="mt-6 text-center text-2xl font-bold text-red-500">ROS1 已逐渐淘汰 —— 只需要学习 ROS2 即可</div>
+- ROS1 的 master 一挂全系统瘫痪；ROS2 节点**自发现**直接对话 —— **没有单点故障**
+- 其余大致差异：**QoS** 可按话题定制；**micro-ROS** 能直接跑在 MCU 上
+
+</div>
+
+<div class="mt-3 text-center text-xl font-bold text-red-500">ROS1 已逐渐淘汰 —— 只需要学习 ROS2 即可</div>
 
 ---
 
 ## Topic: Publisher and Subscription
 
-**场景接第 1 页**：规划层算出"机器人该怎么走"，把速度指令**单向、持续**地发给四足运动控制器 —— 这就是 Topic
+**场景接第 1 页**：规划层把速度指令**单向持续**发给四足运动控制器 —— 这就是 Topic
 
 <div class="grid grid-cols-2 gap-2 compact-code">
 
@@ -534,12 +554,16 @@ rclpy.spin(node)          # spin：分发回调
 
 </div>
 
+<div class="text-base">
+
 **实现一次 Topic 通信，代码里数出四样东西**：
 
-- **消息类型** `Twist` —— 数据格式的<span class="text-red-500">合同</span>，两端用同一个类型
-- **话题名** `/cmd_vel` —— 命名的<span class="text-red-500">频道</span>，对上同一频道才能收到
-- **QoS** `10` —— 通信策略（缓存最近 10 条），入门照抄
-- **回调 + `spin()`** —— 消息到达进队列，spin 取出，<span class="text-red-500">自动触发回调</span>
+- **消息类型** `Twist` —— 数据格式的<span class="text-red-500">合同</span>，两端同一个类型
+- **话题名** `/cmd_vel` —— 命名的<span class="text-red-500">频道</span>，两端对上才能收到
+- **QoS** `10` —— 通信策略（存最近 10 条），入门照抄
+- **回调 + `spin()`** —— 消息到达进队列，spin 取出<span class="text-red-500">自动触发回调</span>
+
+</div>
 
 ---
 
@@ -761,25 +785,21 @@ flowchart LR
 
 ## Action: 背后机制 Ⅱ —— 状态机与选型
 
-**goal handle 状态机**（客户端拿到的"任务凭据"就是它）：
+**goal handle 状态机**（客户端拿到的"任务凭据"就是它；状态变化广播在 **status topic**，服务端可同时挂多个 goal）：
 
 <div class="flex justify-center">
 
-```mermaid {scale: 0.8}
-stateDiagram-v2
-    [*] --> ACCEPTED : send_goal 被接受
-    ACCEPTED --> EXECUTING : 开始执行
-    EXECUTING --> SUCCEEDED : execute 正常返回
-    EXECUTING --> ABORTED : execute 异常返回
-    EXECUTING --> CANCELED : cancel_goal
+```mermaid {scale: 0.5}
+flowchart LR
+    S(("下发")) --> AC["ACCEPTED<br/>已接受"] --> EX["EXECUTING<br/>执行中"]
+    EX --> SU["SUCCEEDED<br/>正常返回"]
+    EX --> AB["ABORTED<br/>异常返回"]
+    EX --> CA["CANCELED<br/>cancel_goal"]
 ```
 
 </div>
 
-- 状态每次变化都广播在 **status topic** 上 —— 任何节点（RViz、监控）都能监听全场，不用挨个去问
-- 服务端可同时挂多个 goal，各走各的状态机互不干扰
-
-<div class="mt-2 text-sm">
+<div class="text-xs">
 
 | | Topic | Service | Action |
 |---|---|---|---|
@@ -789,9 +809,9 @@ stateDiagram-v2
 
 </div>
 
-<div class="mt-4 text-center text-xl font-bold text-red-500">选用口诀：连续流用 Topic · 短确认用 Service · 长任务用 Action</div>
+<div class="mt-2 text-center text-base font-bold text-red-500">选用口诀：连续流用 Topic · 短确认用 Service · 长任务用 Action</div>
 
-<div class="mt-3 text-base">调试：`ros2 action list` · `ros2 action info /go_to_pose`</div>
+<div class="text-xs opacity-70">调试：`ros2 action list` · `ros2 action info /go_to_pose`</div>
 
 ---
 
@@ -850,15 +870,149 @@ stateDiagram-v2
 
 ---
 
-## ROS2 Control
+## ROS2 Control: 为什么频率稳
 
-<div class="opacity-40">内容待补充…</div>
+**根本原因只有两条 —— <span class="text-red-500">内核级 RT 线程</span> + <span class="text-red-500">绕开 DDS 的进程内共享内存</span>**
+
+<div class="text-base">
+
+- **① 内核级 RT 线程** —— `SCHED_FIFO` 是内核调度策略：实时线程**无条件抢占**一切普通线程，update() 每 1 ms 被**内核**准时叫醒 —— "到点必达"，不是"尽量快"
+- **② 通信绕开 DDS，直接共享内存** —— 控制器与硬件抽象同进程，command / state interface 就是一块 `double` 数组：<span class="text-red-500">零序列化 · 零拷贝 · 零队列 · 零网络栈</span>，例题里的 C_fixed 压到 ≈ 0
+- **其余都是配套** —— 固定周期定时器定节拍；环外 topic 经 RealtimeBuffer 无锁进环；热路径零分配零日志
+
+</div>
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.62}
+flowchart LR
+    T["环外节点<br/>topic 100–500 Hz<br/>普通调度"]
+    subgraph CM["controller_manager 进程 · RT 线程 · update_rate = 1000"]
+        direction LR
+        R["read()<br/>总线→状态"] --> U["update()<br/>你的控制器"] --> W["write()<br/>命令→总线"]
+    end
+    T -->|"RealtimeBuffer<br/>无锁"| U
+```
+
+</div>
+
+<div class="text-center text-base font-bold text-primary">环内 = 内核级 RT 调度 + 进程内共享内存 —— "每一拍都准"的来源</div>
 
 ---
 
-## ROS2 Effective Develop of Team Collaboration
+## ROS2 Control: 写一个自己的控制器
 
-<div class="opacity-40">内容待补充…</div>
+**一个控制器 = 实现三个函数**：认领接口（要什么）· on_activate（备资源）· update（每拍干什么）
+
+<div class="compact-code">
+
+```cpp
+class LegController : public controller_interface::ControllerInterface {
+  // ① 认领接口：声明用哪些命令/状态，形如 "knee_fr/effort"
+  InterfaceConfiguration command_interface_configuration() const override;
+  // ② 环外数据入口：topic 回调跑在普通线程，经无锁缓冲进环
+  void on_activate(const State&) override {
+    sub_ = get_node()->create_subscription<LegCmd>(
+        "/leg_cmd", 10,
+        [this](auto m) { buf_.writeFromNonRT(*m); });
+  }
+  // ③ 每拍被调（Humble 叫 update，Iron+ 改名 on_update）
+  ReturnType update(const Time&, const Duration&) override {
+    auto cmd = *buf_.readFromRT();                  // 无锁取最新指令
+    double q = state_interfaces_[0].get_value();    // 读：进程内数组
+    double tau = cmd.kp * (cmd.q_des - q)
+               - cmd.kd * qd_est;                   // 算：PD
+    command_interfaces_[0].set_value(tau);          // 写：进程内数组
+    return OK;
+  }
+};
+```
+
+</div>
+
+<div class="text-base">
+
+- **接口名（`joint/interface`）= 控制器与硬件的<span class="text-red-500">契约</span>** —— hardware_interface 负责对接 EtherCAT / CAN / 仿真器
+- update() 只做 读 → 算 → 写；<span class="text-red-500">禁止</span> new / 日志 / sleep / 锁 —— pluginlib 导出成插件，YAML 一行注册（下页）
+
+</div>
+
+---
+
+## ROS2 Control: 把环跑起来
+
+**频率、插件、硬件，三样各在哪定义**：
+
+```yaml
+# my_robot.ros2_control.yaml
+controller_manager:
+  ros__parameters:
+    update_rate: 1000        # ← 环的频率，这一行定死
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    leg_controller:
+      type: leg_controllers/LegController    # 你写的插件
+```
+
+- **URDF 里声明硬件层** —— `<ros2_control>` 标签写 hardware plugin 与每个 joint 的 command / state interface 名单
+- **launch 三步** —— `ros2_control_node` 起环 → spawner 激活 joint_state_broadcaster（关节状态广播到 `/joint_states`，这就是<span class="text-red-500">环内→环外的桥</span>）→ spawner 激活你的控制器
+- **先抄现成的** —— forward_command_controller（转发指令，调硬件必备）、diff_drive_controller、fake_components（没硬件先仿真跑通）
+
+调试：<span class="text-red-500">`ros2 control list_controllers`</span> · `ros2 control list_hardware_interfaces`
+
+---
+
+## ROS2 Team Collaboration: 四人协同一台自主四足
+
+<div class="text-base">
+
+**场景**：A 四足运控 · B 机械臂运控 · C 定位感知 · D 决策+导航规划 —— 落回第 1 页的五层架构（C=感知，D=决策规划，A/B=控制，电机=执行）
+
+</div>
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.54}
+flowchart LR
+    C["同学 C<br/>定位感知<br/>RGBD·LiDAR·IMU"] -->|"位姿·方块位置<br/>topic 数据流"| D["同学 D<br/>决策 + 导航规划"]
+    D -->|"/cmd_vel<br/>topic 速度指令"| A["同学 A<br/>四足运控"]
+    D -->|"抓取任务<br/>action"| B["同学 B<br/>机械臂运控"]
+```
+
+</div>
+
+**开工第一件事：按链路特性选通信 —— 频率多高？容忍多大延迟？同步还是异步？**
+
+<div class="text-xs">
+
+| 链路 | 特性 | 选型 |
+|---|---|---|
+| C → D 位姿 / 目标 | 连续流、可丢帧 | topic（best_effort） |
+| D → A `/cmd_vel` | 连续流、只要最新 | topic（depth = 1） |
+| D → B 抓取 | 长任务、要进度、可取消 | action |
+| A / B 内部 1 kHz 运控环 | 硬实时、每拍都准 | <span class="text-red-500">不走通信 —— ros2_control</span> |
+
+</div>
+
+---
+
+## ROS2 Team Collaboration: 接口先行 · 并行开发 · merge 联调
+
+<div class="text-base">
+
+- **Step 1 · 接口先行** —— 第一天把 msg / srv / action 全定进 `robot_interfaces` 包：谁用什么数据、什么频率、什么 QoS，写进 README；<span class="text-red-500">改接口必须走 PR</span>（就是 Git 部分说的那个接口包）
+- **Step 2 · 并行开发** —— 一人一个 package（目录结构 Git 部分讲过），都从 `robot_interfaces` import 同一套接口；进度互不阻塞靠 **stub**：感知没好？决策先订假位姿；运控没好？假 `/cmd_vel` 照样调
+- **Step 3 · merge 联调** —— feat 分支 + PR + CI（`colcon build && colcon test`）全绿才合 main；联调用 `bringup` 包的 launch <span class="text-red-500">一条命令拉起全车四个人的节点</span>
+
+</div>
+
+**联调三大经典锅**：
+
+- **接口私改没走 PR** —— 一人改字段，三人编译爆炸
+- **单位不统一** —— rad vs deg、m vs mm，机器人当场抽风
+- **QoS 不匹配** —— pub 是 best_effort 而 sub 要 reliable = <span class="text-red-500">数据永远到不了</span>，且不报错；`ros2 topic info -v` 一查便知
+
+<div class="text-center text-base font-bold text-primary">Git 管协作流程，ROS2 管通信契约 —— 两套规范合起来，就是团队的"开发法"</div>
 
 ---
 layout: section
@@ -866,37 +1020,177 @@ layout: section
 
 # Robot Arm Manipulation
 
-robot arm: from rotation matrices to dynamics.
+from rotation matrices to planning & control.
 
 ---
 
-## Rotation Matrix
+## Rotation Matrix: 从二维到三维
 
-<div class="opacity-40">内容待补充…</div>
+**旋转矩阵回答一个问题：新坐标系的轴，在旧坐标系下指向哪 —— 列向量就是答案**
 
----
+<div class="text-sm">
 
-## Coordinate Transformation in Homogeneous Space
+$$R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix} \qquad R_z(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta & 0 \\ \sin\theta & \cos\theta & 0 \\ 0 & 0 & 1 \end{bmatrix}$$
 
-<div class="opacity-40">内容待补充…</div>
+</div>
 
----
+<div class="text-base">
 
-## Forward & Inverse Kinematics
+- **二维 → 三维**：2D 绕原点转 θ；3D 绕一根轴转 —— $R_x, R_y$ 同理，只是"不动的那根轴"对角线放 1
+- **三条性质**（后面全靠它）：① 正交 $R^TR = I$ → <span class="text-red-500">转置 = 逆</span>，求逆不用解方程；② $\det R = +1$，纯旋转不镜像；③ 复合 = 乘法：相对固定系先 $R_1$ 后 $R_2$ = $R_2 R_1$
+- **本质**：把"姿态"变成"乘法" —— 机器人学一切位姿运算的地基
 
-<div class="opacity-40">内容待补充…</div>
-
----
-
-## Jacobian Matrix
-
-<div class="opacity-40">内容待补充…</div>
+</div>
 
 ---
 
-## Dynamics
+## 姿态描述：矩阵、欧拉角与四元数
 
-<div class="opacity-40">内容待补充…</div>
+**姿态只有 3 个自由度，却有三种"记法" —— 各有各的坑**：
+
+| 表示 | 个数 | 优点 | 坑 | 用在哪 |
+|---|---|---|---|---|
+| 旋转矩阵 | 9 | 无奇异、直接乘 | 冗余（带 6 个约束） | 推导、计算 |
+| RPY / 欧拉角 | 3 | 直观、给人看 | <span class="text-red-500">万向节死锁</span>：pitch = ±90° 时 roll / yaw 共线，丢一个自由度 | 界面、调参 |
+| 四元数 | 4 | 无奇异、插值平滑 | 不直观、要归一化 | 存储、通信 |
+
+<div class="text-base">
+
+- ROS2 里 `geometry_msgs/Quaternion`（x, y, z, w）是标配 —— IMU、tf、MoveIt 全用它
+- **实用主义**：存储通信用四元数，给人看转 RPY，计算立刻换回矩阵；RPY → 矩阵 $R = R_z(\psi)\,R_y(\theta)\,R_x(\phi)$
+
+</div>
+
+---
+
+## 齐次坐标变换
+
+**把"旋转 + 平移"打包成一个 4×4 矩阵，坐标变换就全是矩阵乘法**：
+
+$$T^{A}_{B} = \begin{bmatrix} R^{A}_{B} & p^{A}_{B} \\ 0 & 1 \end{bmatrix} \qquad\quad T^{A}_{C} = T^{A}_{B}\, T^{B}_{C}$$
+
+<div class="text-base">
+
+- **$T^A_B$ 读作"B 系在 A 系下的位姿"**：$R$ 说姿态、$p$ 说原点；点坐标补个 1 再乘即可换系
+- **连乘 = 接力翻译**：方块在相机系 → $T^{cam}_{arm}$ → 机械臂系 → $T^{arm}_{world}$ → 世界系 —— <span class="text-red-500">一台机器人就是一棵变换树</span>
+- **左乘 vs 右乘**：相对固定系变换 = 左乘；相对自身当前系 = 右乘（绕自己转）
+- ROS2 的 **tf2** 就是在全局维护这棵树、并随时间插值 —— 生态页里的"tf2 坐标变换"就是它
+
+</div>
+
+---
+
+## 正运动学 & 逆运动学
+
+**FK：已知关节角求末端在哪 —— 唯一解，连乘就行；IK：末端要到哪求关节角 —— 可能多解、无解**
+
+<div class="text-base">
+
+- **正运动学 FK**：DH 参数给每个关节 4 个数，$T^{base}_{end} = A_1(q_1)\,A_2(q_2)\cdots A_n(q_n)$ —— 上一页的矩阵连乘，永远唯一
+- **逆运动学 IK**：解非线性方程组 —— **解析解**（特定结构可闭式推导：四足单腿 3 关节、Pieper 结构 6 轴臂）vs **数值解**（牛顿迭代 $q \leftarrow q + J^{+}\,\Delta x$，通用但依赖初值、可能不收敛）
+- **直觉**：FK 顺藤摸瓜，IK 戴着镣铐倒推 —— 所以真实系统里 <span class="text-red-500">IK 只对少数结构解析求解</span>，其余交给迭代或 IKFast / KDL
+
+</div>
+
+---
+
+## 雅可比矩阵：速度映射与奇异位形
+
+**$J(q)$ 把"关节速度"线性映射到"末端速度"—— 它是姿态的函数，随关节角实时变化**
+
+$$v_{end} = J(q)\,\dot{q} \qquad\quad \tau = J^{T}(q)\,F_{end}$$
+
+<div class="text-base">
+
+- **每一列的几何意义**：只有第 $i$ 个关节以单位速度转时，末端的速度
+- **奇异性**：某些姿态 $\det J = 0$ —— 末端出现"够不着"的方向：该方向要无穷大关节速度、力却无限放大 —— <span class="text-red-500">机械臂完全伸直就是典型奇异位形</span>
+- **力对偶 $\tau = J^TF$**：足端踩地 100 N，各关节该出多大力矩，转置一乘就得到 —— <span class="text-red-500">leg_control 算关节力矩的核心公式</span>
+- 用途贯穿全书：数值 IK、静力学、速度控制、下一页动力学
+
+</div>
+
+---
+
+## 动力学：$M\ddot q + C\dot q + G = \tau$
+
+**运动学不问力，动力学问：施加多大的关节力矩，才能产生想要的运动**
+
+$$M(q)\,\ddot{q} + C(q,\dot{q})\,\dot{q} + G(q) = \tau$$
+
+<div class="text-base">
+
+- $M(q)$ **惯性**：加速要克服的"体重"—— 关节角不同，等效惯量不同
+- $C\dot q$ **科氏 / 离心**：腿甩快了才明显，低速常忽略
+- $G(q)$ **重力**：站着不动也要扛的项 —— 重力补偿就靠它
+- **浮基四足**：躯干 6-DoF 没电机，$q$ = [躯干 6; 关节 12]，地面接触力 $f_c$ 经足端雅可比进入：$M\ddot q + h = S^{T}\tau + J_c^{T}f_c$
+
+</div>
+
+<div class="text-center text-sm font-bold text-primary">谁能 1 kHz 内算完 M、C、G、J？—— 动力学库 Pinocchio（下一页 leg_control 的发动机）</div>
+
+---
+
+## 动力学实战：leg_control 四足 WBC
+
+**开源四足 leg_control（qiayuanl）—— ros2_control + Pinocchio 的教科书级实现**
+
+<div class="compact-code">
+
+```cpp
+// 简化自 leg_control 的 WBC —— 每拍 1 kHz，跑在 RT 线程里
+// ① 动力学各项：Pinocchio 从 URDF 建模，一拍算全
+pinocchio::crba(model, data, q);                  // M(q)   惯性
+pinocchio::nonLinearEffects(model, data, q, v);   // h = C(q,v)·v + g(q)
+pinocchio::computeFrameJacobians(model, data, q); // Jc     足端雅可比
+// ② WBC（MIT Cheetah 风格）："躯干姿态 + 摆动腿足端"写成任务，
+//    加权最小二乘（QR 分解）解出 全身加速度 q̈* 和接触力 fc*
+wbc.solve(tasks) -> { qdd_star, fc };
+// ③ 映射到 12 个关节力矩：tau = S·(M·q̈* + h − Jcᵀ·fc)
+//    支撑腿等效于 tau_leg = J_legᵀ · f_leg —— 上一页的力对偶
+//    摆动腿：足端 PD，经腿雅可比转回关节空间
+```
+
+</div>
+
+<div class="text-base">
+
+- **三个角色分工**：Pinocchio 管"算得快"（1 kHz 算完全身动力学），WBC 管"要什么运动"，$\tau = J^Tf$ 管"力怎么落到电机"
+- 想读代码：`leg_controllers` 的 WBC 实现 + `leg_kinematics` 的单腿闭式 IK —— 本课公式全在里面
+
+</div>
+
+---
+
+## 运动规划：从 A 到 B 的艺术
+
+**问题：高维、有障碍、带约束的空间里，找一条从起点到目标的可行路径**
+
+<div class="text-base">
+
+- **规划发生在构型空间 C-space**：机器人每个"姿势"是一个点，障碍把一部分点变成禁区 —— 规划 = 在这个可能 12 维的空间里找通路
+- **采样式规划（RRT 系）—— 高维主力**：随机撒点 + 贪心长树，撞上障碍换方向，<span class="text-red-500">概率完备</span>（时间够必能找到）；RRT-Connect 双树对长，是 MoveIt 默认
+- **其他家族**：图搜索 A*（低维栅格，导航路径规划器用它）；优化式 CHOMP / STOMP（轨迹平滑，易陷局部最优）
+- **路径 ≠ 轨迹**：路径没有时间，加上时间参数化（速度 / 加速度约束）才变成可执行轨迹
+
+</div>
+
+<div class="text-center text-sm font-bold text-primary">规划管"绕得过去"，时间参数化管"跑得动"，执行交给 ros2_control —— 三段接力</div>
+
+---
+
+## MoveIt2：运动规划全家桶
+
+**把上一页的方法打包成开箱即用的库：规划 + 碰撞 + IK + 执行一条龙**
+
+<div class="text-base">
+
+- **里面有什么**：三个可换规划器 OMPL（RRT 采样）/ Pilz（工业 PTP·LIN）/ STOMP；FCL 碰撞检测（Planning Scene 维护环境）；IK 插件（KDL 数值 / IKFast 解析）；轨迹时间参数化
+- **与 ros2_control 闭环**：MoveGroup 规划出 `JointTrajectory` → <span class="text-red-500">trajectory controller 按时间戳执行</span> —— 规划的终点就是前面 ros2_control 的起点
+- **上手三步**：URDF + SRDF（定义规划组、碰撞对）→ 启 MoveGroup 节点 → 客户端一句 plan & execute（C++ / moveit_py）
+
+</div>
+
+**抓方块任务的完整链路（全课首尾呼应）**：C 感知给方块位姿 → tf2 转到机械臂系 → MoveIt2 IK + RRT-Connect 避桌避身 → 时间参数化 → ros2_control 执行 —— <span class="text-red-500">这节课讲的每一块，都在这条链上</span>
 
 ---
 layout: center
