@@ -26,7 +26,7 @@ Git & ROS2 & Robot Arm Manipulation
 
 <div>
 <div class="text-2xl font-semibold">AI is still just a tool — it cannot solve every problem for you, especially those requiring physical interaction; its power depends not only on the model's capability, but even more on the person wielding it.</div>
-<div class="mt-1 text-base font-medium text-primary">AI目前来看还只是一个工具，无法帮你解决所有的和需要有物理交互的问题，他的主要威力不仅取决于模型的能力更取决于使用它的人</div>
+<div class="mt-1 text-base font-medium text-primary">AI目前来看还只是一个工具，无法帮你解决所有需要和物理产生交互的问题，他的主要威力不仅取决于模型的能力更取决于使用它的人</div>
 </div>
 
 <div>
@@ -52,7 +52,7 @@ Git & ROS2 & Robot Arm Manipulation
 - ROS2
   - Why Develop Robots Should We Use ROS2
   - Topic: Publisher and Subscription
-  - Action & Service: Client and Server
+  - Service & Action: Client and Server
   - ROS2 Control
   - ROS2 Effective Develop of Team Collaboration 
 - Robot Arm Manipulation
@@ -442,19 +442,272 @@ The standard framework for robot development: communication, building tool and e
 
 ## Why Develop Robots Should We Use ROS2
 
-<div class="opacity-40">内容待补充…</div>
+**任何一个智能机器人，都由同样的五层构成：感知 → 决策 → 规划 → 控制 → 执行**
+
+<div class="text-sm">
+
+以 RoboCon 四足机器人搬运方块为例 —— 每一层在这个任务里分别是什么：
+
+| 层 | 回答的问题 | 这个任务里是什么 |
+|---|---|---|
+| **感知** Perception | 环境和自身现在什么状态？ | RGBD 相机找方块位置；LiDAR + IMU 定机器人位姿 |
+| **决策** Decision | 现在该做什么？ | 任务状态机：移动到抓取点 → 抓取 → 搬运 → 放置 |
+| **规划** Planning | 具体怎么做？ | 全局路径规划器（怎么走到方块旁）；机械臂运动规划器（怎么动到方块） |
+| **控制** Control | 怎么实时稳定地跟踪？ | 四足步态 / 平衡控制器；机械臂关节伺服 |
+| **执行** Execution | 真正做功的硬件 | 机械臂 + 四足的所有关节电机 |
+
+</div>
+
+**这么多模块是怎么一起跑起来的？—— 多进程**：每一个部分都是一个独立进程，单独处理自己的信息，再和其他模块相互通信、交换信息。这个框架、这个交换信息的平台，就是 **ROS2**。
+
+<v-click>
+
+<div class="mt-4 text-center text-2xl font-bold text-red-500">ROS2 不是多么神奇的东西 —— 核心只是一个通信的媒介</div>
+
+<div class="mt-4 text-center text-base font-medium text-primary">但随着工具逐渐强大、生态逐渐完善：colcon 构建 · tf2 坐标变换 · RViz 可视化 · rosbag 录制回放 · launch 一键启动 · ros2_control · MoveIt —— 今天的 ROS2 早已不单纯是一个多进程通信工具</div>
+
+</v-click>
+
+---
+
+## What Changed: ROS1 → ROS2
+
+**最大的变化：不再需要 roscore 了**
+
+<div class="flex justify-center">
+
+```mermaid {scale: 0.9}
+flowchart TB
+    subgraph R1["ROS1 —— 先起中央 master，所有节点连它"]
+        A["节点 A"] <--> M["roscore"]
+        B["节点 B"] <--> M
+        C["节点 C"] <--> M
+    end
+    subgraph R2["ROS2 —— 节点自发现，对等直连"]
+        D["节点 A"] <--> E["节点 B"]
+        E <--> F["节点 C"]
+        D <--> F
+    end
+```
+
+</div>
+
+- ROS1 的 master 一挂，整个系统瘫痪；ROS2 基于 DDS **自发现**，节点直接对话 —— **没有单点故障**
+- 其余大致差异：**QoS** 可按话题定制（控制指令走可靠通道、图像流允许丢包）；平台更广，**micro-ROS** 能直接跑在 MCU 上
+
+<div class="mt-6 text-center text-2xl font-bold text-red-500">ROS1 已逐渐淘汰 —— 只需要学习 ROS2 即可</div>
 
 ---
 
 ## Topic: Publisher and Subscription
 
-<div class="opacity-40">内容待补充…</div>
+**场景接第 1 页**：规划层算出"机器人该怎么走"，把速度指令**单向、持续**地发给四足运动控制器 —— 这就是 Topic
+
+<div class="grid grid-cols-2 gap-2">
+
+```python
+# 发布者 planner —— 规划节点
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+
+class PlannerNode(Node):
+    def __init__(self):
+        super().__init__('planner')
+        self.pub = self.create_publisher(
+            Twist, '/cmd_vel', 10)        # 类型+话题+QoS
+        self.create_timer(0.1, self.tick) # 10 Hz 发布
+
+    def tick(self):
+        msg = Twist()
+        msg.linear.x = 0.5    # 前进 0.5 m/s
+        self.pub.publish(msg)
+
+rclpy.init()                  # 接入网络
+rclpy.spin(PlannerNode())     # 持续运行
+```
+
+```python
+# 订阅者 locomotion —— 四足控制节点
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+
+class LocNode(Node):
+    def __init__(self):
+        super().__init__('locomotion')
+        self.create_subscription(
+            Twist, '/cmd_vel', self.on_cmd, 10)
+
+    def on_cmd(self, msg):    # 消息到达，自动回调
+        self.get_logger().info(
+            f'vx = {msg.linear.x}')
+
+rclpy.init()
+rclpy.spin(LocNode())         # spin：分发回调
+```
+
+</div>
+
+**围绕代码数一数，一次 Topic 通信需要什么：**
+
+- **消息类型 `Twist`** —— 数据格式的"合同"，两端 import 同一个类型
+- **话题名 `/cmd_vel`** —— 命名的频道，发布端和订阅端对上同一频道
+- **QoS `10`** —— 通信策略（缓存最近 10 条），入门照抄即可
+- **回调 + `spin()`** —— 消息到达进队列，spin 取出并触发回调
+
+<v-click>
+
+**背后机制**：Topic 是一条**命名的广播电台** —— 发布者只管发、不知道谁在听，订阅者只管收、不知道谁在发，**双方彻底解耦**，一边崩了另一边照常跑；**类型 + 话题名 + QoS 匹配**，DDS 自发现才把两端接起来。它适合**单向、连续**的数据流；"一问一答、必须等结果"是下一页的 Service。
+
+调试三连：<span class="text-red-500">`ros2 topic list`</span> · <span class="text-red-500">`ros2 topic echo /cmd_vel`</span> · `ros2 topic hz /cmd_vel`
+
+</v-click>
 
 ---
 
-## Action & Service: Client and Server
+## Service: Client and Server
 
-<div class="opacity-40">内容待补充…</div>
+**接场景**：上层要机械臂运动到抓取位姿 —— 必须**等到确认结果**才能走下一步，这种"一问一答"就是 Service
+
+<div class="grid grid-cols-2 gap-2">
+
+```python
+# 服务端 server —— 机械臂控制节点
+import rclpy
+from rclpy.node import Node
+from robot_interfaces.srv import SetEndPose
+
+class ArmServer(Node):
+    def __init__(self):
+        super().__init__('arm_control')
+        self.create_service(SetEndPose,
+                            'set_end_pose', self.handle)
+
+    def handle(self, req, res):   # 收到请求
+        res.success = self.move_to(req.pose)
+        return res                # 必须返回响应
+
+rclpy.init()
+rclpy.spin(ArmServer())
+```
+
+```python
+# 客户端 client —— 上层任务节点
+import rclpy
+from rclpy.node import Node
+from robot_interfaces.srv import SetEndPose
+
+class TaskNode(Node):
+    def __init__(self):
+        super().__init__('task_node')
+        self.cli = self.create_client(
+            SetEndPose, 'set_end_pose')
+
+    def grasp(self, pose):
+        self.cli.wait_for_service()    # 等对方在线
+        fut = self.cli.call_async(
+            SetEndPose.Request(pose=pose))
+        rclpy.spin_until_future_complete(self, fut)
+        return fut.result().success    # 拿到答复
+```
+
+</div>
+
+**围绕代码数一数，一次 Service 通信需要什么：**
+
+- **服务类型 `SetEndPose.srv`** —— 文件里 `---` 上半是请求、下半是响应；自定义接口放 `robot_interfaces` 包（就是 Git 部分说的接口包）
+- **服务名 `set_end_pose`** —— 两端对上同一个名字
+- **服务端 `create_service(类型, 名, 回调)`** —— 回调收到 `req`，处理后返回 `res`
+- **客户端 `create_client` + `call_async`** —— 异步调用拿到 future，`spin_until_future_complete` 等结果
+
+<v-click>
+
+**背后机制**：Service 是一次**远程函数调用** —— 客户端"调用"、服务端"执行并返回"，一问必有一答；底层其实就是 DDS 上的一对 topic（请求一条、响应一条），**不是新的传输层，而是一种通信模式**。适合**低频、短耗时、必须确认结果**的操作；但服务回调里别干长活 —— 长耗时还要进度汇报，是下一页的 Action。
+
+调试：<span class="text-red-500">`ros2 service list`</span> · `ros2 service call /set_end_pose robot_interfaces/srv/SetEndPose "..."`
+
+</v-click>
+
+---
+
+## Action: Client and Server
+
+**接场景**：决策层给四足下发"导航到方块旁" —— 任务**耗时长、要进度、可能中途取消**，这是 Action
+
+<div class="grid grid-cols-2 gap-2">
+
+```python
+# 动作端 server —— 导航节点
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionServer
+from robot_interfaces.action import GoToPose
+
+class NavServer(Node):
+    def __init__(self):
+        super().__init__('navigator')
+        ActionServer(self, GoToPose, 'go_to_pose',
+                     execute_callback=self.execute)
+
+    def execute(self, goal):       # 长任务写这里
+        for i, step in enumerate(self.plan()):
+            move(step)
+            fb = GoToPose.Feedback()
+            fb.progress = i / len(self.plan())
+            goal.publish_feedback(fb)   # 汇报进度
+        res = GoToPose.Result()
+        res.success = True
+        return res                    # 最终结果
+
+rclpy.init()
+rclpy.spin(NavServer())
+```
+
+```python
+# 客户端 client —— 决策节点
+import rclpy
+from rclpy.node import Node
+from rclpy.action import ActionClient
+from robot_interfaces.action import GoToPose
+
+class TaskNode(Node):
+    def __init__(self):
+        super().__init__('task_node')
+        self.cli = ActionClient(
+            self, GoToPose, 'go_to_pose')
+
+    def goto(self, pose):
+        self.cli.wait_for_server()
+        fut = self.cli.send_goal_async(
+            GoToPose.Goal(target=pose))
+        rclpy.spin_until_future_complete(self, fut)
+        handle = fut.result()       # "任务凭据"
+        r = handle.get_result_async()
+        rclpy.spin_until_future_complete(self, r)
+        return r.result().success   # 最终结果
+```
+
+</div>
+
+- **三段式定义** —— `GoToPose.action` 用两根 `---` 分成 goal（目标）/ result（结果）/ feedback（反馈）
+- **服务端 `execute_callback`** —— 长任务在这里跑，随时 `publish_feedback`
+- **客户端拿到的是 goal handle** —— 是"任务凭据"不是结果，凭它可查进度、`cancel_goal()` 中途放弃
+- **为什么不用 Service** —— service 回调里干长活会把服务堵死，这正是 Action 存在的理由
+
+<v-click>
+
+**背后机制**：Action = **topic 和 service 的组合** —— goal 下发与结果返回走 service（可靠一问一答），feedback 和状态广播走 topic（持续单向流），拼成了一个"长任务协议"。
+
+| | Topic | Service | Action |
+|---|---|---|---|
+| 模式 | 广播 | 一问一答 | 下发长任务 |
+| 数据 | 单向连续流 | 请求 + 响应 | 目标 + 反馈 + 结果 |
+| 典型 | `/cmd_vel`、传感器 | 设定位姿、标定 | 导航、抓取 |
+
+调试：`ros2 action list` · `ros2 action info /go_to_pose`
+
+</v-click>
 
 ---
 
