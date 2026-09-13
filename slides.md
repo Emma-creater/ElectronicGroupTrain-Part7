@@ -1721,4 +1721,4 @@ flowchart LR
 layout: center
 ---
 
-# Thanks
+# <span class="text-8xl font-bold">Thanks</span>
