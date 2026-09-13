@@ -1433,6 +1433,217 @@ wbc.solve(tasks) -> { qdd_star, fc };
 
 ---
 
+## 进阶 ①：Ṙ 的推导 —— 正交性求导 + 物理比对
+
+**三步推出"旋转矩阵的导数 = 角速度的反对称矩阵"**
+
+<div class="text-sm">
+
+**第一步 · 对正交性求导，导数天生反对称** —— R 是旋转矩阵 ⇒ $R^TR = I$ 恒成立，两边对 $t$ 求导：
+
+<div class="text-xs">
+
+$$\dot R^T R + R^T \dot R = 0 \;\;\Rightarrow\;\; S \triangleq R^T\dot R \quad\text{满足}\quad S^T = -S$$
+
+</div>
+
+**为什么 S 能直接写成 $\omega_{xyz}$ 排列？** —— 对角线强制为 0、非对角两两配对：独立元恰 3 个，与三维向量<span class="text-red-500">一一对应</span>；位置与符号由 $\hat\omega\,p \equiv \omega\times p$ <span class="text-red-500">逐行唯一钉死</span>：
+
+$$\hat\omega = \begin{bmatrix} 0 & -\omega_z & \omega_y \\ \omega_z & 0 & -\omega_x \\ -\omega_y & \omega_x & 0 \end{bmatrix} \;\;\xleftrightarrow{\;\;\vee\;\;}\;\; \omega = (\,S_{32},\;S_{13},\;S_{21}\,)$$
+
+**第二步 · 物理比对 —— 三行小代数，缺一环都连不上** —— 点长在刚体上（$p_b$ 是**常数**，求导不碰它）；要比对，两边必须**同参考系**（物理式 $\dot p = \omega\times p$ 只认世界系的 $p_s$）：
+
+<div class="text-xs">
+
+$$p_s = R\,p_b \;\;\xrightarrow{\;p_b\ \text{固定，对}\ t\ \text{求导}\;}\;\; \dot p_s = \dot R\,p_b \;\;\xrightarrow{\;p_b = R^T p_s\ \text{（正交性换系）}\;}\;\; \dot p_s = (\dot R\,R^T)\,p_s \;\;\overset{!}{=}\;\; \omega\times p_s = \hat\omega\,p_s$$
+
+$$\Rightarrow\qquad \hat\omega_s = \dot R\,R^T \qquad\qquad \hat\omega_b = R^T\dot R$$
+
+</div>
+
+<div class="text-xs">
+
+- **插入 $R^T$ 不是技巧** —— 把 $p_b$ 换回世界系坐标：正交性 $R^{-1}=R^T$ 免求逆
+- **非这么写不可** —— $(\dot R R^T)$ 作用在 $p_s$ 上还必须等于"叉乘" ⇒ 只能是反对称的 $\hat\omega$
+- **$\omega\times p$ 是物理输入** —— $v = \omega r$ 的向量形式（大小 $|\omega||p|\sin\varphi$、方向沿切线）；$p\cdot\dot p = 0$ 保证速度⊥位置
+
+</div>
+
+</div>
+
+---
+
+## 进阶 ①（续）：2D 验算与欧拉角速度映射
+
+<div class="text-sm">
+
+**第三步 · 2D 验算（θ = ωt 绕 z）** —— 直接微分 vs 反对称构造，各算一遍：
+
+<div class="text-xs">
+
+$$\dot R = \frac{d}{dt}\begin{bmatrix} c & -s \\ s & c \end{bmatrix} = \begin{bmatrix} -\omega s & -\omega c \\ \omega c & -\omega s \end{bmatrix} \qquad\quad \hat\omega R = \begin{bmatrix} 0 & -\omega \\ \omega & 0 \end{bmatrix}\begin{bmatrix} c & -s \\ s & c \end{bmatrix} = \begin{bmatrix} -\omega s & -\omega c \\ \omega c & -\omega s \end{bmatrix}$$
+
+</div>
+
+<span class="text-red-500">逐项相等 ✓</span> —— 殊途同归；IMU 的 ω 就是从这里进入姿态积分
+
+</div>
+
+**欧拉角速度 ≠ 机体角速度** —— $[\dot\phi, \dot\theta, \dot\psi]$ 须经映射矩阵才变成 ω（ZYX、世界系）：
+
+$$\omega_s = \begin{bmatrix} c\theta c\psi & -s\psi & 0 \\ c\theta s\psi & c\psi & 0 \\ -s\theta & 0 & 1 \end{bmatrix}\begin{bmatrix}\dot\phi \\ \dot\theta \\ \dot\psi\end{bmatrix}$$
+
+<div class="text-base">
+
+- **直觉的做法（ZYX 连乘直接求导）= 这条公式的展开** —— 把 $R = R_zR_yR_x$ 按乘积法则求导、整理成 $\dot R\,R^T$，得到的正是上面的映射矩阵：欧拉角映射只是<span class="text-red-500">坐标无关公式 $\hat\omega_s = \dot R\,R^T$ 在 ZYX 参数化下的具体展开</span> —— 参数化版本换约定要重推、θ=±90° 奇异，$\dot R\,R^T$ 对任何参数化（含四元数）一律成立
+- **映射在 θ = ±90° 奇异** —— 万向节死锁换了个地方出现：所以控制器内部一律用 ω / 四元数，欧拉角只留在调参界面上
+
+</div>
+
+---
+
+## 进阶 ②：动力学方程从哪来
+
+**M、C、g 不是凭空写的 —— 拉格朗日法用雅可比把动能拼出来**
+
+<div class="text-base">
+
+- 每根连杆动能 = 平移 + 旋转：$T = \sum_i \left(\tfrac{1}{2}m_i v_i^Tv_i + \tfrac{1}{2}\omega_i^T I_i \omega_i\right)$，而 $v_i = J_{v,i}\dot q$、$\omega_i = J_{\omega,i}\dot q$ —— **同一参考系下，串联机构的雅可比逐级累加**（笔记重点）
+- 代入即得 $T = \tfrac{1}{2}\dot q^T M(q)\,\dot q$，其中：
+
+</div>
+
+$$M(q) = \sum_i \left(J_{v,i}^T\, m_i\, J_{v,i} + J_{\omega,i}^T\, I_i\, J_{\omega,i}\right)$$
+
+<div class="text-base">
+
+- **惯性矩阵 = 所有连杆雅可比的加权和**；再代入欧拉-拉格朗日方程整理，就得到熟悉的 $M\ddot q + C\dot q + g = \tau$（C 由 M 对 q 的偏导组合而来）
+- Pinocchio 的 `crba` 干的就是这件事
+
+</div>
+
+---
+
+## 进阶 ③：伪逆与零空间
+
+**背景：控制天天要"反着用雅可比"** —— 已知想要的末端速度 $\dot x$（摇杆 / 轨迹给的），求该给的关节速度，即解 $J\,\dot q = \dot x$。三个拦路虎：
+
+<div class="text-sm">
+
+- **J 不是方阵** —— 任务空间 6 维、关节 n 个（7 轴臂是 6×7），长方形矩阵**没有逆**
+- **奇异位形掉秩** —— 臂伸直时逆不存在，硬解会力矩爆炸
+- **冗余（关节数 > 任务维数）** —— 方程有无穷多解：末端同样动、肘随便摆 —— 选哪个？
+
+</div>
+
+<div class="grid grid-cols-2 gap-4 items-center">
+
+<div>
+
+<svg viewBox="0 0 380 230" class="w-[330px] mx-auto">
+  <defs>
+    <marker id="nz" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <line x1="20" y1="190" x2="130" y2="190" stroke="#94a3b8" stroke-width="1.5"/>
+  <g stroke="#94a3b8" stroke-width="1">
+    <line x1="35" y1="190" x2="28" y2="200"/><line x1="55" y1="190" x2="48" y2="200"/>
+    <line x1="75" y1="190" x2="68" y2="200"/><line x1="95" y1="190" x2="88" y2="200"/>
+  </g>
+  <line x1="50" y1="190" x2="120" y2="120" stroke="#475569" stroke-width="5" stroke-linecap="round"/>
+  <line x1="120" y1="120" x2="240" y2="140" stroke="#475569" stroke-width="5" stroke-linecap="round"/>
+  <line x1="50" y1="190" x2="95" y2="150" stroke="#3b82f6" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round"/>
+  <line x1="95" y1="150" x2="240" y2="140" stroke="#3b82f6" stroke-width="3" stroke-dasharray="7 5" stroke-linecap="round"/>
+  <circle cx="50" cy="190" r="7" fill="#1e293b"/>
+  <circle cx="120" cy="120" r="5" fill="#1e293b"/>
+  <circle cx="95" cy="150" r="4" fill="#3b82f6"/>
+  <circle cx="240" cy="140" r="7" fill="#ef4444"/>
+  <path d="M 226 122 l 28 0 m -14 -14 l 0 28 m -6 -22 l 12 16 m 0 -16 l -12 16" stroke="#ef4444" stroke-width="2" fill="none"/>
+  <text x="200" y="170" fill="#ef4444" font-size="6" font-weight="bold">末端锁定</text>
+  <text x="200" y="188" fill="#64748b" font-size="6">J·z = 0，任务量不动</text>
+  <text x="128" y="108" fill="#1e293b" font-size="6">肘位置 A</text>
+  <text x="60" y="140" fill="#3b82f6" font-size="6">肘位置 B</text>
+  <text x="20" y="222" fill="#475569" font-size="6">同一个末端，肘可以绕 —— 零空间自由度</text>
+</svg>
+
+</div>
+
+<div class="text-sm">
+
+- **伪逆回答前两问**：$J^+ = J^T(JJ^T)^{-1}$ —— 长方形 / 掉秩 J 的<span class="text-red-500">最小二乘 · 最小范数解</span> $\dot q = J^+\dot x$；奇异附近加阻尼项 $\lambda$ 防爆炸
+- **零空间回答第三问**：$Jz = 0$ 的方向，<span class="text-red-500">末端不动、关节能动</span>（左图：末端锁死，肘照样换位置）—— 多余的自由度拿去避奇异 / 避障 / 省力，不影响主任务
+
+</div>
+
+</div>
+
+---
+
+## 进阶 ④：多任务控制（Task Priority）
+
+**任务有主次：主任务全速执行，次任务只在主任务的零空间里捡剩**
+
+$$\dot q = \underbrace{J_1^+\,\dot x_1}_{主任务} + \underbrace{(I - J_1^+J_1)\,z}_{\text{零空间里的次任务}}$$
+
+<div class="text-base">
+
+- $(I - J_1^+J_1)$ 是**零空间投影矩阵** —— 保证次任务无论怎么动，<span class="text-red-500">永远不破坏主任务</span>
+- 笔记原例：任务 1 = 末端速度跟踪、任务 2 = 末端姿态 —— 次任务速度经投影后叠加进关节速度；再配权重矩阵 $W$ 就是加权伪逆
+- 这套 **"任务栈 + 零空间投影"是 WBC 的直系祖先** —— leg_control 的加权最小二乘，就是它的 QP 化身
+
+</div>
+
+---
+
+## 进阶 ④（续）：四足上的 WBC 实现
+
+**上页"任务栈 + 加权"在 MIT Cheetah 与 leg_control 里的真实长相**
+
+<div class="text-sm">
+
+- **任务清单**：躯干位置 + 躯干姿态（浮基 6-DoF 拆两个任务）、每条摆动腿的足端位置（×4）；**支撑腿不设任务、改成约束**：足端加速度 = 0（贴地不打滑）；决策变量 $(\ddot q, f_c) \in \mathbb{R}^{18+12}$ 一起解，动力学方程作等式约束拴住两者
+
+</div>
+
+| 上页的理论 | 四足里的实现 |
+|---|---|
+| 主任务 $J_1\,\dot x_1$ | 躯干位置 / 姿态任务的期望加速度（来自 MPC / 步态层） |
+| 加权 $W$ | 任务权重：躯干 > 摆动腿 |
+| 零空间自由度 + 投影 $(I{-}J^+J)$ | 剩余自由度由 QP / 加权最小二乘**隐式分配** |
+
+<div class="text-sm">
+
+- **MIT Cheetah（Kim et al. 2019）**：所有任务加权堆叠成超定方程，**QR 分解解加权最小二乘** —— 不含不等式（摩擦锥交给上层 MPC 的力分配保证），1 kHz 解得飞快
+- **leg_control**：同一套任务，改用 **QP 求解器**，把摩擦锥、力矩上限**显式写成不等式约束** —— 上页说的"QP 化身"就是这里（MIT 出自论文；leg_control 请对照仓库 `leg_controllers` 的 WBC 源码核验）
+- 解出 $(\ddot q^*,\, f_c)$ 后：$\tau = S(M\ddot q^* + h - J_c^T f_c)$ —— computed torque 的浮基版（下页）
+
+</div>
+
+---
+
+## 进阶 ⑤：模型用起来 —— Computed Torque 与 VMC
+
+**有了模型，控制只剩两件事：把误差变成加速度，把力变成功矩**
+
+<div class="text-base">
+
+- **逆动力学控制（computed torque）**：误差先变成期望加速度 $q_d'' = q_{ref}'' + K_d\dot e + K_p e$，再用模型一步算力矩：
+
+</div>
+
+$$\tau = M(q)\,q_d'' + C(q,\dot q)\,\dot q + g(q) \;\;\Rightarrow\;\; \ddot e + K_d\dot e + K_p e = 0$$
+
+<div class="text-base">
+
+- 模型准时误差动力学**精确线性化** —— 增益按二阶系统直接配（**反馈线性化**）；重力补偿 $\tau = g(q)$ 是它在静止时的特例
+- **VMC 虚拟模型控制（准静态）**：在躯干 / 末端"装虚拟弹簧"，$F = K(x_d - x) + D(\dot x_d - \dot x)$，然后 $\tau = J^T F$ —— 不解方程不求逆，<span class="text-red-500">雅可比转置一把梭</span>；与 MIT QP 平衡控制器的静力学分析一致，leg_control 支撑腿 $\tau = J^T f$ 就是它
+- **分工**：低速 / 准静态用 VMC（简单稳定），全速动态用 WBC / MPC（带上 M 和 C）
+
+</div>
+
+<div class="text-xs opacity-60">本节内容取自 ETH《Robot Dynamics Lecture Notes》及知乎学习笔记（华北舵狗王，zhuanlan.zhihu.com/p/342203970）</div>
+
+---
+
 ## 运动规划：从 A 到 B 的艺术
 
 **问题：高维、有障碍、带约束的空间里，找一条从起点到目标的可行路径**
