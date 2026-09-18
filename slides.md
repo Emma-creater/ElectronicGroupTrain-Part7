@@ -1021,9 +1021,16 @@ controller_manager:
       type: leg_controllers/LegController    # 你写的插件
 ```
 
-- **URDF 里声明硬件层** —— `<ros2_control>` 标签写 hardware plugin 与每个 joint 的 command / state interface 名单
-- **launch 三步** —— `ros2_control_node` 起环 → spawner 激活 joint_state_broadcaster（关节状态广播到 `/joint_states`，这就是<span class="text-red-500">环内→环外的桥</span>）→ spawner 激活你的控制器
-- **先抄现成的** —— forward_command_controller（转发指令，调硬件必备）、diff_drive_controller、fake_components（没硬件先仿真跑通）
+**C++ 和 YAML 是怎么接上头的？—— 一个控制器的三段旅程**
+
+<div class="text-sm">
+
+- **① 编译** —— `.cpp` → 机器码 → `.so` 动态库；YAML 只是 `config/` 纯文本，<span class="text-red-500">编译器根本不看它</span>
+- **② 启动** —— `controller_manager` 读 YAML：`update_rate: 1000` → 开 1ms 定时器；`type: leg_controllers/LegController` → <span class="text-red-500">按名字加载 .so</span>（pluginlib），调 `on_activate()`（建无锁缓冲和订阅）
+- **③ 运行** —— 每 1ms 调一次 `update()`（PD）；YAML 已读完、<span class="text-red-500">不再参与计算</span>（除非动态改参数）
+- **URDF 声明硬件层** —— `<ros2_control>` 标签写 hardware plugin 与各 joint 的 interface 名单；spawner 激活 joint_state_broadcaster（`/joint_states`，环内→环外的桥）；现成轮子：forward_command_controller、fake_components
+
+</div>
 
 调试：<span class="text-red-500">`ros2 control list_controllers`</span> · `ros2 control list_hardware_interfaces`
 
