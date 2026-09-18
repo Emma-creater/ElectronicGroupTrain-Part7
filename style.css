@@ -3,3 +3,9 @@
   font-size: 0.72rem !important;
   line-height: 1.3 !important;
 }
+
+/* 更小一档（Action 代码页：双栏代码 + .action 示例同页） */
+.compact-code-xs pre {
+  font-size: 0.62rem !important;
+  line-height: 1.25 !important;
+}

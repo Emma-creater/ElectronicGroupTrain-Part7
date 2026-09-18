@@ -152,7 +152,7 @@ flowchart LR
 
 <div class="flex justify-center">
 
-```mermaid {scale: 1.1}
+```mermaid {scale: 1.0}
 gitGraph
     commit id: "c1"
     commit id: "c2"
@@ -170,6 +170,28 @@ gitGraph
 </div>
 
 - <span class="text-red-500">`git branch`</span> · <span class="text-red-500">`git checkout -b <name>`</span> · <span class="text-red-500">`git checkout <name>`</span> · `git switch -c <name>` · `git switch <name>` · `git branch -d <name>`
+
+---
+
+## 分支的本质：哈希与指针
+
+**上一页说"分支是指针"—— 指针是怎么实现的？答案：哈希（可以亲手打开看）**
+
+<div class="text-base">
+
+- 每个 commit 的 ID = 整个内容的 **SHA-1**：快照 + 父 commit 哈希 + 作者 + 时间 + 信息 → 40 位十六进制；内容改一个字节、哈希面目全非 —— <span class="text-red-500">防篡改是白送的</span>
+- **分支就是一个文本文件**：`.git/refs/heads/arm-control` 里只有一行——某个 commit 的哈希；所谓"移动指针" = 往文件里写个新哈希
+- **HEAD 也是一个文件**：`.git/HEAD` 写着 `ref: refs/heads/main`（"我现在站在哪条分支"）；commit 对象里存着**父 commit 的哈希** → 哈希串成链，`git log` 就是沿哈希链往回走
+
+</div>
+
+<div class="mt-3 px-3 py-2 border border-gray-500 border-opacity-40 rounded text-sm">
+
+**打个比方**：哈希 = **指纹**（由内容天生决定，改一个字节就"换了个人"，谁也冒充不了）；commit 链 = **家谱**（每条记录都写着"我爸的指纹是…"，`git log` 就是顺藤摸瓜往上查）；分支 = **墙上的便利贴**（只写着"目前认准 c3a1f9…"，"移动分支" = 换一行字）—— 便利贴不值钱，所以建分支**瞬间完成、随便多建**
+
+</div>
+
+动手：`cat .git/HEAD` · `cat .git/refs/heads/*` —— 看完这两个文件，"指针"就再也不抽象了
 
 ---
 
@@ -237,13 +259,19 @@ __pycache__/
 </style>
 
 - 已经被 track 的文件，加进 `.gitignore` **不会**自动忽略，要先 `git rm -r --cached <dir>` 再提交
-- 几十 MB 的大文件（onnx 模型 / PCB / CAD / 视频）不要硬塞仓库，会拖慢所有人 clone —— 用 **Git LFS**：`git lfs track "*.onnx"`
+- 几十 MB 的大文件不要硬塞仓库，会拖慢所有人 clone —— 团队里常见的有：**onnx 模型**（训练好的神经网络权重，视觉检测用，动辄上百 MB）、**PCB 工程**（电路板设计文件，Altium / KiCad）、**CAD 模型**（机械件三维设计，SolidWorks 等）、视频 —— 用 **Git LFS**：`git lfs track "*.onnx"`
 
 ---
 
 ## Advanced Git: Hooks
 
 **Git Hooks** — `.git/hooks/` 目录下的脚本，Git 会在特定动作的节点自动执行；脚本以非零退出码结束，该动作就被**阻断**
+
+<div class="text-sm">
+
+**为什么"非零退出码"能拦截？** —— Unix 老规矩：任何命令跑完都带回一个**退出码**——0 = 成功、非 0 = 失败（终端里 `echo $?` 能看到上一条的）；Git 跑完 hook 只看这个数字：<span class="text-red-500">0 → 放行，非 0 → 判定失败、立刻中止当前动作</span> —— 和你平时串命令 `cmd1 && cmd2`（前面成功才继续）是同一套机制；下面示例的 `|| exit 1` 就是把"编译失败"翻译成退出码 1 递给 Git
+
+</div>
 
 | Hook | 触发时机 | 组里能干什么 |
 |---|---|---|
@@ -560,7 +588,7 @@ rclpy.spin(node)          # spin：分发回调
 
 - **消息类型** `Twist` —— 数据格式的<span class="text-red-500">合同</span>，两端同一个类型
 - **话题名** `/cmd_vel` —— 命名的<span class="text-red-500">频道</span>，两端对上才能收到
-- **QoS** `10` —— 通信策略（存最近 10 条），入门照抄
+- **QoS** `10` —— 通信策略的"历史深度"：只缓存最近 10 条，入门照抄（QoS 是什么？见后面的"寄快递"页）
 - **回调 + `spin()`** —— 消息到达进队列，spin 取出<span class="text-red-500">自动触发回调</span>
 
 </div>
@@ -611,6 +639,34 @@ flowchart LR
 <div class="mt-4 text-base">调试三连：<span class="text-red-500 font-bold">`ros2 topic list`</span> · <span class="text-red-500 font-bold">`ros2 topic echo /cmd_vel`</span> · `ros2 topic hz /cmd_vel`</div>
 
 <div class="mt-2 text-xs opacity-60">真实工程里节点通常写成 class 继承 Node —— 上一页取最简写法，聚焦通信 API</div>
+
+---
+
+## 管道与 QoS：像寄一份快递
+
+**上一页 DDS 管道的每个环节，都能在快递里找到对应**
+
+<div class="text-xs">
+
+| DDS 环节 | 快递比喻 | 到底在干什么 |
+|---|---|---|
+| **序列化 CDR** | 按统一装箱单打包 | 结构体 → 标准字节流，收件方按同一张单子拆箱还原 |
+| **DataWriter 队列** | 发件仓库的货架 | 发出前排队，货架容量 = KEEP_LAST N |
+| UDP / 共享内存 | 快递车 / 共墙传物口 | UDP 走网络协议栈（跨进程）；共享内存 = 同机共用一块内存，免搬运 |
+| **DataReader 队列** | 收件仓库的货架 | 到货排队，等你来取 |
+| spin + 回调 | 管家定期取件、拆箱送到手上 | spin 循环从货架取货，触发你的回调 |
+
+</div>
+
+<div class="text-sm">
+
+**QoS（通信策略）= 寄快递时选的服务档次**：
+
+- **可靠性**：RELIABLE = <span class="text-red-500">挂号信</span>（必达、丢了补发）· BEST_EFFORT = <span class="text-red-500">平信</span>（快、可丢）—— 图像/指令常选平信：要最新不要旧帧
+- **历史深度 KEEP_LAST(N)**：货架只留最新 N 件 —— 代码里的 `10` 就是它；要"永远最新"用 depth 1
+- **匹配提醒**：发方平信 + 收方挂号信 = 不兼容，<span class="text-red-500">一条也收不到还不报错</span>
+
+</div>
 
 ---
 
@@ -706,9 +762,9 @@ flowchart LR
 
 ## Action: Client and Server
 
-**接场景**：决策层给四足下发"导航到方块旁" —— **耗时长、要进度、可中途取消**
+**接场景**：决策层下发"导航到方块旁" —— **耗时长 · 要进度 · 可取消**
 
-<div class="grid grid-cols-2 gap-2 compact-code">
+<div class="grid grid-cols-2 gap-2 compact-code compact-code-xs">
 
 ```python
 # 动作端 —— 导航节点
@@ -746,9 +802,20 @@ rclpy.spin_until_future_complete(node, r)
 
 </div>
 
-- **三段式定义** `GoToPose.action` —— 两根 `---` 分隔 <span class="text-red-500">goal / result / feedback</span>
-- **服务端** `execute_callback` —— 长任务写这里，随时 `publish_feedback`
-- **客户端拿 goal handle** —— <span class="text-red-500">任务凭据，不是结果</span>，可 `cancel_goal()` 取消
+<div class="compact-code compact-code-xs">
+
+```python
+# robot_interfaces/action/GoToPose.action —— 两根 --- 切成三段
+geometry_msgs/PoseStamped target      # ① goal：去哪（随任务下发）
+---
+bool success                          # ② result：最终到了吗（结束才有，可带说明字段）
+---
+float32 progress                      # ③ feedback：进度 0~1（执行中持续汇报）
+```
+
+</div>
+
+- **长任务写在 `execute_callback`**，随时 `publish_feedback`；客户端拿到的 **goal handle = 任务凭据不是结果**，可 `cancel_goal()` 取消
 
 ---
 
